@@ -867,6 +867,25 @@ export const api = {
     return `${API_BASE}/editor/documents/${id}/export/${format}`;
   },
 
+  async login(password: string): Promise<{ success: boolean; data?: { token: string } }> {
+    const res = await safeRequest<{ success: boolean; data?: { token: string } }>(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    });
+    if (res.data?.token) {
+      localStorage.setItem('marketmate_auth_token', res.data.token);
+    }
+    return res;
+  },
+
+  logout(): void {
+    localStorage.removeItem('marketmate_auth_token');
+  },
+
+  async getAuthStatus(): Promise<{ success: boolean; data: { authRequired: boolean; authMode: string } }> {
+    return safeRequest(`${API_BASE}/auth/status`);
+  },
 };
 
 export default api;

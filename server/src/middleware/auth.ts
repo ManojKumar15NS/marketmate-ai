@@ -36,8 +36,21 @@ function getOrCreateAuthToken(): string {
 
 const SERVER_AUTH_TOKEN = getOrCreateAuthToken();
 
-// In development or single-tenant local mode, allow seamless access if DEV_BYPASS_AUTH is true
-const DEV_BYPASS_AUTH = process.env.NODE_ENV !== 'production' || process.env.AUTH_DISABLED === 'true';
+// Check if authentication is strictly enforced
+export function isAuthEnforced(): boolean {
+  if (process.env.AUTH_DISABLED === 'true') return false;
+  if (process.env.AUTH_REQUIRED === 'true') return true;
+
+  const hasAuthToken = Boolean(process.env.AUTH_TOKEN && process.env.AUTH_TOKEN.trim().length >= 8);
+  const hasAdminPassword = Boolean(
+    process.env.ADMIN_PASSWORD &&
+    process.env.ADMIN_PASSWORD.trim().length >= 4 &&
+    process.env.ADMIN_PASSWORD.trim() !== 'admin'
+  );
+
+  // If credentials were provided in environment variables, enforce authentication
+  return hasAuthToken || hasAdminPassword;
+}
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   // Public whitelisted paths
@@ -52,8 +65,13 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     return next();
   }
 
-  // If local development bypass is enabled, allow access
-  if (DEV_BYPASS_AUTH) {
+  // Allow GET /api/settings publicly so frontend status pills can load safely
+  if (req.path === '/api/settings' && req.method === 'GET') {
+    return next();
+  }
+
+  // If auth is not configured or disabled, allow access
+  if (!isAuthEnforced()) {
     return next();
   }
 
@@ -68,7 +86,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     token = apiKeyHeader.trim();
   }
 
-  if (!token || token !== SERVER_AUTH_TOKEN) {
+  if (!token || !verifyLoginCredentials(token)) {
     res.status(401).json({
       success: false,
       error: {
@@ -83,9 +101,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 }
 
 export function getPublicAuthStatus() {
+  const enforced = isAuthEnforced();
   return {
-    authRequired: !DEV_BYPASS_AUTH,
-    authMode: DEV_BYPASS_AUTH ? 'development_open' : 'token_protected'
+    authRequired: enforced,
+    authMode: enforced ? 'token_protected' : 'development_open'
   };
 }
 
@@ -93,10 +112,11 @@ export function verifyLoginCredentials(passwordOrToken: string): boolean {
   if (!passwordOrToken) return false;
   const candidate = passwordOrToken.trim();
   const adminPassword = process.env.ADMIN_PASSWORD ? process.env.ADMIN_PASSWORD.trim() : null;
+  const envAuthToken = process.env.AUTH_TOKEN ? process.env.AUTH_TOKEN.trim() : null;
 
-  // Strict: zero default passwords. Must match SERVER_AUTH_TOKEN or explicit non-empty ADMIN_PASSWORD
   if (candidate === SERVER_AUTH_TOKEN) return true;
-  if (adminPassword && adminPassword.length >= 8 && candidate === adminPassword) return true;
+  if (envAuthToken && candidate === envAuthToken) return true;
+  if (adminPassword && candidate === adminPassword) return true;
 
   return false;
 }

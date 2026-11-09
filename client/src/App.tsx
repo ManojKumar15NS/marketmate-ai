@@ -17,11 +17,13 @@ import { Prospecting } from './pages/Prospecting';
 import { EmailFinder } from './pages/EmailFinder';
 import { JobProvider } from './context/JobContext';
 import { BackgroundActivityPanel } from './components/BackgroundActivityPanel';
+import { AuthModal } from './components/AuthModal';
 import { api } from './services/api';
 import { SystemSettings } from './types';
 
 function AppLayout() {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -29,8 +31,11 @@ function AppLayout() {
     try {
       const data = await api.getSettings();
       setSettings(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch settings:', err);
+      if (err?.message?.includes('Authentication required') || err?.message?.includes('UNAUTHORIZED') || err?.message?.includes('401')) {
+        setIsAuthModalOpen(true);
+      }
     }
   };
 
@@ -116,6 +121,16 @@ function AppLayout() {
 
       {/* Global Background Activity Slide-Over Panel */}
       <BackgroundActivityPanel />
+
+      {/* Admin Unlock / Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={() => {
+          setIsAuthModalOpen(false);
+          fetchSettings();
+        }}
+      />
     </div>
   );
 }
