@@ -1,0 +1,15 @@
+{
+  "name": "marketmate-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MarketMate AI — Personal AI Marketing & Research Assistant",
+  "scripts": {
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "build:server": "npm run build --prefix server",
+    "build:client": "npm run build --prefix client",
+    "build": "npm run build:client && npm run build:server",
+    "db:migrate": "npm run db:migrate --prefix server",
+    "start": "node server/dist/index.js"
+  }
+}

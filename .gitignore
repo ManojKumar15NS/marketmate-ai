@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production Builds
+dist/
+build/
+client/dist/
+server/dist/
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+.session_token
+
+# Persistent Storage & Database files
+data/
+backup_pre_postgres_*/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+uploads/
+
+# Logs & Temporary Files
+*.log
+*.tmp
+logs/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
