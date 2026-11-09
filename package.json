@@ -4,6 +4,7 @@
   "private": true,
   "description": "MarketMate AI — Personal AI Marketing & Research Assistant",
   "scripts": {
+    "dev": "node dev.js",
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",
     "build:server": "npm run build --prefix server",
