@@ -153,7 +153,7 @@ export interface WebSearchResultItem {
  */
 export async function searchLiveWeb(query: string, maxResults: number = 8): Promise<WebSearchResultItem[]> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 9000);
+  const timeout = setTimeout(() => controller.abort(), 15000);
 
   // 1. Tavily Search API (when TAVILY_API_KEY configured)
   const tavilyKey = process.env.TAVILY_API_KEY;

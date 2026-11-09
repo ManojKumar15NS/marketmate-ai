@@ -22,7 +22,7 @@ import remarkGfm from 'remark-gfm';
 export const Research: React.FC = () => {
   const navigate = useNavigate();
   const [topic, setTopic] = useState('');
-  const [industry, setIndustry] = useState('Cloud Computing & DevOps');
+  const [industry, setIndustry] = useState('');
   const [targetRegion, setTargetRegion] = useState('India');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<ResearchResult | null>(null);
@@ -137,7 +137,7 @@ export const Research: React.FC = () => {
       {/* Research Form */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-sm">
         <form onSubmit={handleResearch} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="sm:col-span-2">
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Company or Market Research Topic
@@ -146,9 +146,22 @@ export const Research: React.FC = () => {
                 type="text"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                placeholder="e.g. Top 10 cloud migration companies in India"
+                placeholder="e.g. Eye Hospital Sector, EV Charging Infrastructure, Fintech"
                 required
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-violet-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-violet-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Industry / Sector (Optional)
+              </label>
+              <input
+                type="text"
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                placeholder="e.g. Healthcare, Automotive"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-violet-500"
               />
             </div>
 
@@ -159,7 +172,7 @@ export const Research: React.FC = () => {
               <select
                 value={targetRegion}
                 onChange={(e) => setTargetRegion(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-violet-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-hidden focus:border-violet-500"
               >
                 <option value="India">India</option>
                 <option value="United States">United States</option>
