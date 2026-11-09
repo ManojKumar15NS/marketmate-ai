@@ -1,6 +1,11 @@
-import 'dotenv/config';
-import fs from 'fs';
+import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
+// Load environment from project root .env.local / .env and server .env
+dotenv.config({ path: path.resolve(__dirname, '../../../.env.local') });
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+import 'dotenv/config';
 import { postgresDb } from '../db/postgres.js';
 import { logger } from '../utils/logger.js';
 

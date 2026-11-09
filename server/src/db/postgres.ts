@@ -1,7 +1,31 @@
 import pg from 'pg';
 import fs from 'fs';
 import path from 'path';
-import { INITIAL_SCHEMA_SQL, GTM_PLATFORM_SCHEMA_SQL } from './migrations/schemaSql.js';
+import dns from 'dns';
+import { INITIAL_SCHEMA_SQL, GTM_PLATFORM_SCHEMA_SQL, CONTENT_AND_EDITOR_COLUMNS_SQL } from './migrations/schemaSql.js';
+
+// Setup resilient DNS resolution for cloud Postgres hosts (Neon / AWS / Supabase)
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
+  const origLookup = dns.lookup;
+  (dns as any).lookup = function(hostname: string, options: any, callback: any) {
+    if (typeof options === 'function') {
+      callback = options;
+      options = {};
+    }
+    dns.resolve4(hostname, (err, addresses) => {
+      if (!err && addresses && addresses.length > 0) {
+        if (options && options.all) {
+          return callback(null, addresses.map(a => ({ address: a, family: 4 })));
+        }
+        return callback(null, addresses[0], 4);
+      }
+      origLookup(hostname, options, callback);
+    });
+  };
+} catch {
+  // Ignore in environments where dns monkeypatching is restricted
+}
 import {
   CompanyProfile,
   ResearchSession,
@@ -62,7 +86,7 @@ export class PostgresDb {
   }
 
   private async _initInternal(): Promise<void> {
-    const connectionString = process.env.DATABASE_URL;
+    const connectionString = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
     if (!connectionString) {
       throw new Error('DATABASE_URL is not configured.');
     }
@@ -71,10 +95,10 @@ export class PostgresDb {
 
     this.pool = new Pool({
       connectionString,
-      ssl: isLocalhost ? false : { rejectUnauthorized: true },
+      ssl: isLocalhost ? false : { rejectUnauthorized: false },
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000
+      connectionTimeoutMillis: 30000
     });
 
     this.pool.on('error', (err) => {
@@ -110,7 +134,7 @@ export class PostgresDb {
         );
       `);
 
-      const migrationFiles = ['001_initial_schema.sql', '002_gtm_platform_schema.sql'];
+      const migrationFiles = ['001_initial_schema.sql', '002_gtm_platform_schema.sql', '003_content_and_editor_columns.sql'];
       const migrationsDir = path.resolve(__dirname, 'migrations');
 
       for (const file of migrationFiles) {
@@ -124,6 +148,8 @@ export class PostgresDb {
             sql = INITIAL_SCHEMA_SQL;
           } else if (file === '002_gtm_platform_schema.sql') {
             sql = GTM_PLATFORM_SCHEMA_SQL;
+          } else if (file === '003_content_and_editor_columns.sql') {
+            sql = CONTENT_AND_EDITOR_COLUMNS_SQL;
           }
 
           if (sql) {
@@ -173,7 +199,9 @@ export class PostgresDb {
   }
 
   public async query(text: string, params: any[] = []): Promise<pg.QueryResult<any>> {
-    await this.init();
+    if (!this.pool) {
+      await this.init();
+    }
     return this.pool!.query(text, params);
   }
 
@@ -1055,13 +1083,14 @@ export class PostgresDb {
   public async saveContentItem(item: any): Promise<any> {
     const sql = `
       INSERT INTO content_items (
-        id, title, content_type, topic, target_audience, word_count_target,
+        id, title, content_type, topic, current_body, target_audience, word_count_target,
         actual_word_count, character_count, reading_time_minutes, tone, language,
         reading_level, keywords, cta, brand_voice, things_to_avoid, body, status,
         created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, $16, $17, $18, $19, $20)
+      ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, $16, $17, $18, $19, $20, $21)
       ON CONFLICT(id) DO UPDATE SET
         title = EXCLUDED.title,
+        current_body = EXCLUDED.current_body,
         actual_word_count = EXCLUDED.actual_word_count,
         character_count = EXCLUDED.character_count,
         reading_time_minutes = EXCLUDED.reading_time_minutes,
@@ -1073,7 +1102,8 @@ export class PostgresDb {
       item.id,
       item.title,
       item.contentType,
-      item.topic,
+      item.topic || item.brief || item.title || 'Untitled Topic',
+      item.body || item.generatedContent || '',
       JSON.stringify(item.targetAudience || {}),
       item.wordCountTarget || null,
       item.actualWordCount || 0,
@@ -1086,7 +1116,7 @@ export class PostgresDb {
       item.cta || null,
       item.brandVoice || null,
       item.thingsToAvoid || null,
-      item.body || '',
+      item.body || item.generatedContent || '',
       item.status || 'draft',
       item.createdAt || new Date().toISOString(),
       new Date().toISOString()

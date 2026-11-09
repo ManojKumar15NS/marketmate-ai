@@ -2,7 +2,9 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { z } from 'zod';
 
-// Load .env from server directory
+// Load environment variables (.env.local from project root, or .env from server/root)
+dotenv.config({ path: path.resolve(__dirname, '../../../.env.local') });
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const envSchema = z.object({
@@ -16,7 +18,9 @@ const envSchema = z.object({
   PAGESPEED_API_KEY: z.string().optional().default(''),
   AUTH_TOKEN: z.string().optional().default(''),
   ADMIN_PASSWORD: z.string().optional().default('admin'),
-  DATABASE_PATH: z.string().optional()
+  DATABASE_PATH: z.string().optional(),
+  DATABASE_URL: z.string().optional(),
+  DATABASE_URL_UNPOOLED: z.string().optional()
 });
 
 let parsedEnv: z.infer<typeof envSchema>;
@@ -33,7 +37,9 @@ try {
     PAGESPEED_API_KEY: process.env.PAGESPEED_API_KEY,
     AUTH_TOKEN: process.env.AUTH_TOKEN,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
-    DATABASE_PATH: process.env.DATABASE_PATH
+    DATABASE_PATH: process.env.DATABASE_PATH,
+    DATABASE_URL: process.env.DATABASE_URL,
+    DATABASE_URL_UNPOOLED: process.env.DATABASE_URL_UNPOOLED
   });
 } catch (err: any) {
   if (err instanceof z.ZodError) {

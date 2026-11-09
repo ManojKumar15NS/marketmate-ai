@@ -1,17 +1,39 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: marketmate-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: marketmate
+      POSTGRES_PASSWORD: marketmate_local_password
+      POSTGRES_DB: marketmate
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marketmate"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   marketmate:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: marketmate-ai
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "5000:5000"
     environment:
       - NODE_ENV=production
       - PORT=5000
+      - DATABASE_URL=postgresql://marketmate:marketmate_local_password@postgres:5432/marketmate
       - FRONTEND_URL=http://localhost:5000
     env_file:
       - ./server/.env
@@ -22,8 +44,10 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 5s
+      start_period: 10s
 
 volumes:
+  postgres_data:
+    driver: local
   marketmate_data:
     driver: local

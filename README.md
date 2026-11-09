@@ -167,14 +167,38 @@ docker run -d \
 
 ---
 
-## ☁️ Cloud Deployment (Render / Railway / VPS)
+## ☁️ Production Deployment (Neon + Render + Vercel)
 
-### Deploying on Railway or Render
-1. Connect your Git repository.
-2. Set the build command: `npm run build`
-3. Set the start command: `npm start`
-4. Add a Persistent Disk / Volume mounted at `/app/server/data` (to preserve SQLite database, jobs, and settings across redeployments).
-5. Add your environment variables (`GEMINI_API_KEY`, `TAVILY_API_KEY`, `HUNTER_API_KEY`, `NODE_ENV=production`).
+For a complete step-by-step walkthrough, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).
+
+### Step 1: Database Setup on Neon (PostgreSQL)
+1. Sign up or log into [Neon](https://console.neon.tech).
+2. Create a new PostgreSQL project named `marketmate-ai`.
+3. Copy the connection string with SSL enabled:
+   `postgresql://neondb_owner:<password>@<endpoint>.neon.tech/neondb?sslmode=require`
+4. The database migrations run automatically on server boot via `server/src/db/schemaSql.ts`.
+
+### Step 2: Backend Deployment on Render
+1. Sign into [Render](https://dashboard.render.com).
+2. Click **New** -> **Blueprint** and connect your GitHub repository, selecting `render.yaml`.
+   *(Or create a new Web Service with Root Directory `server`, Build Command `npm install && npm run build`, and Start Command `npm start`)*.
+3. Add the required Environment Variables in the Render dashboard:
+   - `DATABASE_URL`: Your Neon connection string.
+   - `GEMINI_API_KEY`: Your Google Gemini API key.
+   - `GEMINI_MODEL`: `gemini-2.5-flash` (or your preferred Gemini model).
+   - `TAVILY_API_KEY`: Your Tavily API key for live web search and LinkedIn grounding.
+   - `FRONTEND_URL`: Your Vercel frontend URL (e.g. `https://marketmate-ai.vercel.app`).
+   - `NODE_ENV`: `production`
+   - `PORT`: `10000`
+4. The service will build and pass the `/api/health` healthcheck probe.
+
+### Step 3: Frontend Deployment on Vercel
+1. Sign into [Vercel](https://vercel.com).
+2. Click **Add New** -> **Project** and import your GitHub repository.
+3. Set the Root Directory to `./client` (or leave at root and let `vercel.json` handle routing).
+4. Add the Environment Variable:
+   - `VITE_API_BASE_URL`: `https://your-render-service.onrender.com`
+5. Deploy. The Single Page Application (SPA) rewrites in `vercel.json` route all client paths (`/prospecting`, `/email-finder`, `/content`, `/seo-editor`, etc.) to `/index.html`.
 
 ---
 
