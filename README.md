@@ -65,7 +65,16 @@ MarketMate AI is a production-grade, dynamic B2B prospecting platform and multi-
    - Professional email discovery is strictly optional and never fabricates fake emails.
    - Hunter credit exhaustion (402/429) displays "Hunter credits exhausted" while keeping all discovered people and LinkedIn links intact.
 
-5. **Security & Operations Ready**:
+5. **WhatsApp Number Finder Specialist Agent**:
+   - Location & Keyword-based WhatsApp Business Lead Discovery (`/whatsapp`).
+   - Discovers real verified commercial establishments, clinics, hospitals, and service providers.
+   - International phone number normalization (E.164) across India (+91), US/Canada (+1), UAE (+971), UK (+44), Australia (+61), etc.
+   - Automatic cellular/mobile detection vs standard landline.
+   - 1-Click "Chat on WhatsApp" direct action buttons with dynamic pre-filled outreach message customization (`https://wa.me/...`).
+   - One-tap **vCard (.vcf) mobile export** to import discovered contacts directly into smartphone WhatsApp address book.
+   - Bulk Excel (.xlsx) and CSV exports.
+
+6. **Security & Operations Ready**:
    - Server-side authentication on API endpoints.
    - Strict CORS origin restriction.
    - Rate limiting and security headers (no MIME-sniffing, clickjacking protection, no X-Powered-By).

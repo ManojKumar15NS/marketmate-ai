@@ -15,6 +15,7 @@ import { Reports } from './pages/Reports';
 import { Knowledge } from './pages/Knowledge';
 import { Prospecting } from './pages/Prospecting';
 import { EmailFinder } from './pages/EmailFinder';
+import { WhatsAppFinder } from './pages/WhatsAppFinder';
 import { JobProvider } from './context/JobContext';
 import { BackgroundActivityPanel } from './components/BackgroundActivityPanel';
 import { AuthModal } from './components/AuthModal';
@@ -65,6 +66,8 @@ function AppLayout() {
         return { title: 'B2B Lead Prospector', subtitle: 'Target account discovery, DNS MX verification & 1:1 personalized outreach' };
       case '/email-finder':
         return { title: 'Email Finder', subtitle: 'Discover verified professional emails across companies and keyword networks' };
+      case '/whatsapp':
+        return { title: 'WhatsApp Number Finder', subtitle: 'Keyword & location-based verified WhatsApp business lead discovery' };
       case '/knowledge':
         return { title: 'Knowledge Base', subtitle: 'Company profile & persistent business memory' };
       case '/settings':
@@ -105,6 +108,7 @@ function AppLayout() {
             <Route path="/reports" element={<Reports />} />
             <Route path="/prospecting" element={<Prospecting />} />
             <Route path="/email-finder" element={<EmailFinder />} />
+            <Route path="/whatsapp" element={<WhatsAppFinder />} />
             <Route path="/knowledge" element={<Knowledge />} />
             <Route
               path="/settings"

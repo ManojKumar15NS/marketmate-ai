@@ -9,7 +9,8 @@ import {
   ExtendedLeadStats,
   CompanyProfile,
   ResearchSession,
-  EmailSearchRun
+  EmailSearchRun,
+  WhatsAppSearchRun
 } from '../types/index.js';
 import { postgresDb } from '../db/postgres.js';
 import { logger } from '../utils/logger.js';
@@ -23,6 +24,7 @@ const CAMPAIGNS_FILE = path.join(DATA_DIR, 'campaigns.json');
 const COMPANY_PROFILES_FILE = path.join(DATA_DIR, 'company_profiles.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const EMAIL_SEARCHES_FILE = path.join(DATA_DIR, 'email_searches.json');
+const WHATSAPP_SEARCHES_FILE = path.join(DATA_DIR, 'whatsapp_searches.json');
 
 function isPostgresActive(): boolean {
   return Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.trim().length > 0);
@@ -69,6 +71,7 @@ let campaignsCache: CampaignKeywordGroup[] | null = null;
 let companyProfilesCache: CompanyProfile[] | null = null;
 let sessionsCache: ResearchSession[] | null = null;
 let emailSearchesCache: EmailSearchRun[] | null = null;
+let whatsappSearchesCache: WhatsAppSearchRun[] | null = null;
 
 export const store = {
   async init(): Promise<void> {
@@ -561,6 +564,54 @@ export const store = {
     if (filtered.length !== list.length) {
       emailSearchesCache = filtered;
       await atomicWriteJson(EMAIL_SEARCHES_FILE, filtered);
+      return true;
+    }
+    return false;
+  },
+
+  // --- WHATSAPP BUSINESS NUMBER SEARCH RUNS ---
+  async getWhatsAppSearches(): Promise<WhatsAppSearchRun[]> {
+    if (isPostgresActive()) {
+      return postgresDb.getWhatsAppSearches();
+    }
+    if (!whatsappSearchesCache) {
+      whatsappSearchesCache = await readJson<WhatsAppSearchRun[]>(WHATSAPP_SEARCHES_FILE, []);
+    }
+    return whatsappSearchesCache.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  async getWhatsAppSearch(id: string): Promise<WhatsAppSearchRun | null> {
+    if (isPostgresActive()) {
+      return postgresDb.getWhatsAppSearch(id);
+    }
+    const list = await this.getWhatsAppSearches();
+    return list.find(s => s.id === id) || null;
+  },
+
+  async saveWhatsAppSearch(search: WhatsAppSearchRun): Promise<void> {
+    if (isPostgresActive()) {
+      return postgresDb.saveWhatsAppSearch(search);
+    }
+    const list = await this.getWhatsAppSearches();
+    const idx = list.findIndex(s => s.id === search.id);
+    if (idx >= 0) {
+      list[idx] = search;
+    } else {
+      list.unshift(search);
+    }
+    whatsappSearchesCache = list;
+    await atomicWriteJson(WHATSAPP_SEARCHES_FILE, list);
+  },
+
+  async deleteWhatsAppSearch(id: string): Promise<boolean> {
+    if (isPostgresActive()) {
+      return postgresDb.deleteWhatsAppSearch(id);
+    }
+    const list = await this.getWhatsAppSearches();
+    const filtered = list.filter(s => s.id !== id);
+    if (filtered.length !== list.length) {
+      whatsappSearchesCache = filtered;
+      await atomicWriteJson(WHATSAPP_SEARCHES_FILE, filtered);
       return true;
     }
     return false;

@@ -18,7 +18,8 @@ import {
   KeyRound,
   UserCheck,
   Users,
-  AtSign
+  AtSign,
+  MessageSquare
 } from 'lucide-react';
 import { SystemSettings } from '../types';
 
@@ -120,6 +121,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ settings, onNewChat }) => {
                 <AtSign className="w-4 h-4 text-purple-500" />
                 <span>Email Finder</span>
               </div>
+            </NavLink>
+            <NavLink to="/whatsapp" className={navItemClass}>
+              <div className="flex items-center gap-2.5">
+                <MessageSquare className="w-4 h-4 text-emerald-600" />
+                <span>WhatsApp Finder</span>
+              </div>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700">NEW</span>
             </NavLink>
             <NavLink to="/seo-editor" className={navItemClass}>
               <div className="flex items-center gap-2.5">

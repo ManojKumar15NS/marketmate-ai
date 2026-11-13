@@ -140,6 +140,18 @@ CREATE TABLE IF NOT EXISTS email_searches (
 CREATE INDEX IF NOT EXISTS idx_email_searches_domain ON email_searches(domain);
 CREATE INDEX IF NOT EXISTS idx_email_searches_created ON email_searches(created_at DESC);
 
+-- 9b. Dedicated WhatsApp Business Lead Searches Registry
+CREATE TABLE IF NOT EXISTS whatsapp_searches (
+  id VARCHAR(128) PRIMARY KEY,
+  keywords TEXT NOT NULL,
+  location TEXT NOT NULL,
+  country_code VARCHAR(32) NOT NULL DEFAULT '+91',
+  total_found INTEGER NOT NULL DEFAULT 0,
+  data JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_searches_created ON whatsapp_searches(created_at DESC);
+
 -- 10. AI Chat Conversations
 CREATE TABLE IF NOT EXISTS conversations (
   id VARCHAR(128) PRIMARY KEY,
@@ -397,4 +409,18 @@ ALTER TABLE editor_document_versions ADD COLUMN IF NOT EXISTS flesch_score NUMER
 ALTER TABLE editor_document_versions ADD COLUMN IF NOT EXISTS seo_score INTEGER DEFAULT 0;
 ALTER TABLE editor_document_versions ADD COLUMN IF NOT EXISTS change_summary TEXT;
 `;
+
+export const WHATSAPP_SEARCHES_SQL = `
+CREATE TABLE IF NOT EXISTS whatsapp_searches (
+  id VARCHAR(128) PRIMARY KEY,
+  keywords TEXT NOT NULL,
+  location TEXT NOT NULL,
+  country_code VARCHAR(32) NOT NULL DEFAULT '+91',
+  total_found INTEGER NOT NULL DEFAULT 0,
+  data JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_searches_created ON whatsapp_searches(created_at DESC);
+`;
+
 

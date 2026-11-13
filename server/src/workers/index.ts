@@ -4,6 +4,8 @@ import { jobService, JobProgressCallback } from '../services/jobService.js';
 import { analyzeWebsiteSeo } from '../tools/websiteAnalysis.js';
 import { ProspectingEngine } from '../agents/prospector.js';
 import { emailFinderService } from '../tools/emailFinderService.js';
+import { whatsappFinderService } from '../tools/whatsappFinderService.js';
+import { store } from '../services/store.js';
 import { geminiService } from '../services/gemini.js';
 import { db } from '../db/index.js';
 import { logger } from '../utils/logger.js';
@@ -222,8 +224,6 @@ Generate:
     return result;
   });
 
-  logger.info('[Workers] Registered handlers for: seo, prospector, email_finder, content, seo_editor, document, research, email');
-
   // 7. Content Creator Agent Worker (Agent 3)
   jobService.registerAgentHandler('content', async (input: any, updateProgress: JobProgressCallback, signal: AbortSignal) => {
     if (!input || typeof input.topic !== 'string' || !input.topic.trim()) {
@@ -259,5 +259,30 @@ Generate:
     updateProgress(100, 'SEO document analysis complete.', { analysis, suggestions });
     return { analysis, suggestions };
   });
+
+  // 9. WhatsApp Number Finder Worker
+  jobService.registerAgentHandler('whatsapp', async (input: any, updateProgress: JobProgressCallback, signal: AbortSignal) => {
+    if (!input || !input.keywords || !input.location) {
+      throw new Error('WhatsApp Finder requires "keywords" (business category) and "location" (city/area).');
+    }
+
+    const result = await whatsappFinderService.search({
+      keywords: input.keywords,
+      location: input.location,
+      countryCode: input.countryCode || '+91',
+      limit: input.limit || 15,
+      messageTemplate: input.messageTemplate
+    }, (percent, stage) => {
+      if (signal.aborted) throw new Error('Job cancelled');
+      updateProgress(percent, stage);
+    });
+
+    await store.saveWhatsAppSearch(result);
+
+    updateProgress(100, `Found ${result.leads.length} verified WhatsApp business contacts in ${input.location}.`, result);
+    return result;
+  });
+
+  logger.info('[Workers] Registered handlers for: seo, prospector, email_finder, content, seo_editor, document, research, email, whatsapp');
 
 }

@@ -5,7 +5,7 @@ import { jobService } from '../services/jobService.js';
 const router = Router();
 
 const createJobSchema = z.object({
-  agentId: z.enum(['prospector', 'seo', 'research', 'email_finder', 'document', 'email', 'content', 'seo_editor']),
+  agentId: z.enum(['prospector', 'seo', 'research', 'email_finder', 'document', 'email', 'content', 'seo_editor', 'whatsapp']),
   input: z.any(),
   companyId: z.string().optional(),
   researchId: z.string().optional()

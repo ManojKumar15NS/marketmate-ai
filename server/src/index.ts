@@ -27,6 +27,7 @@ import documentsRouter from './routes/documents.js';
 import knowledgeRouter from './routes/knowledge.js';
 import leadsRouter from './routes/leads.js';
 import emailFinderRouter from './routes/emailFinder.js';
+import whatsappRouter from './routes/whatsapp.js';
 import jobsRouter from './routes/jobs.js';
 import authRouter from './routes/auth.js';
 
@@ -119,6 +120,7 @@ app.use('/api/documents', documentsRouter);
 app.use('/api/knowledge', knowledgeRouter);
 app.use('/api/leads', leadsRouter);
 app.use('/api/email-finder', emailFinderRouter);
+app.use('/api/whatsapp', whatsappRouter);
 
 // 6. Production Static Assets (Client SPA)
 const CLIENT_DIST = path.resolve(__dirname, '../../../client/dist');

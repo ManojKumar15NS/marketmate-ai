@@ -2,7 +2,7 @@ import pg from 'pg';
 import fs from 'fs';
 import path from 'path';
 import dns from 'dns';
-import { INITIAL_SCHEMA_SQL, GTM_PLATFORM_SCHEMA_SQL, CONTENT_AND_EDITOR_COLUMNS_SQL } from './migrations/schemaSql.js';
+import { INITIAL_SCHEMA_SQL, GTM_PLATFORM_SCHEMA_SQL, CONTENT_AND_EDITOR_COLUMNS_SQL, WHATSAPP_SEARCHES_SQL } from './migrations/schemaSql.js';
 
 // Setup resilient DNS resolution for cloud Postgres hosts (Neon / AWS / Supabase)
 try {
@@ -33,6 +33,7 @@ import {
   CampaignKeywordGroup,
   Lead,
   EmailSearchRun,
+  WhatsAppSearchRun,
   Conversation,
   Task,
   ExtendedLeadStats
@@ -134,7 +135,7 @@ export class PostgresDb {
         );
       `);
 
-      const migrationFiles = ['001_initial_schema.sql', '002_gtm_platform_schema.sql', '003_content_and_editor_columns.sql'];
+      const migrationFiles = ['001_initial_schema.sql', '002_gtm_platform_schema.sql', '003_content_and_editor_columns.sql', '004_whatsapp_searches.sql'];
       const migrationsDir = path.resolve(__dirname, 'migrations');
 
       for (const file of migrationFiles) {
@@ -150,6 +151,8 @@ export class PostgresDb {
             sql = GTM_PLATFORM_SCHEMA_SQL;
           } else if (file === '003_content_and_editor_columns.sql') {
             sql = CONTENT_AND_EDITOR_COLUMNS_SQL;
+          } else if (file === '004_whatsapp_searches.sql') {
+            sql = WHATSAPP_SEARCHES_SQL;
           }
 
           if (sql) {
@@ -722,6 +725,46 @@ export class PostgresDb {
 
   public async deleteEmailSearch(id: string): Promise<boolean> {
     const res = await this.query('DELETE FROM email_searches WHERE id = $1', [id]);
+    return Boolean(res.rowCount && res.rowCount > 0);
+  }
+
+  // ============================================================================
+  // WHATSAPP SEARCHES
+  // ============================================================================
+
+  public async getWhatsAppSearches(): Promise<WhatsAppSearchRun[]> {
+    const res = await this.query('SELECT data FROM whatsapp_searches ORDER BY created_at DESC');
+    return res.rows.map(r => r.data);
+  }
+
+  public async getWhatsAppSearch(id: string): Promise<WhatsAppSearchRun | null> {
+    const res = await this.query('SELECT data FROM whatsapp_searches WHERE id = $1', [id]);
+    return res.rows[0] ? res.rows[0].data : null;
+  }
+
+  public async saveWhatsAppSearch(search: WhatsAppSearchRun): Promise<void> {
+    await this.query(`
+      INSERT INTO whatsapp_searches (id, keywords, location, country_code, total_found, data, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+      ON CONFLICT(id) DO UPDATE SET
+        keywords = EXCLUDED.keywords,
+        location = EXCLUDED.location,
+        country_code = EXCLUDED.country_code,
+        total_found = EXCLUDED.total_found,
+        data = EXCLUDED.data;
+    `, [
+      search.id,
+      search.keywords,
+      search.location,
+      search.countryCode || '+91',
+      search.actualDiscoveredCount || search.leads.length,
+      JSON.stringify(search),
+      search.createdAt || new Date().toISOString()
+    ]);
+  }
+
+  public async deleteWhatsAppSearch(id: string): Promise<boolean> {
+    const res = await this.query('DELETE FROM whatsapp_searches WHERE id = $1', [id]);
     return Boolean(res.rowCount && res.rowCount > 0);
   }
 

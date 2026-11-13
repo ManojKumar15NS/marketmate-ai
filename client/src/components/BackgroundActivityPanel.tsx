@@ -15,7 +15,8 @@ import {
   FileText,
   Compass,
   Mail,
-  Layers
+  Layers,
+  MessageSquare
 } from 'lucide-react';
 import { useJobs } from '../context/JobContext';
 import { BackgroundJob } from '../types';
@@ -50,6 +51,8 @@ export const BackgroundActivityPanel: React.FC = () => {
         return { label: 'Market Research', icon: Compass, color: 'text-indigo-600 bg-indigo-50 border-indigo-200', path: '/research' };
       case 'email':
         return { label: 'Email Outreach', icon: Mail, color: 'text-sky-600 bg-sky-50 border-sky-200', path: '/email' };
+      case 'whatsapp':
+        return { label: 'WhatsApp Finder', icon: MessageSquare, color: 'text-emerald-700 bg-emerald-50 border-emerald-300', path: '/whatsapp' };
       default:
         return { label: 'Agent', icon: Layers, color: 'text-slate-600 bg-slate-50 border-slate-200', path: '/' };
     }
@@ -63,7 +66,8 @@ export const BackgroundActivityPanel: React.FC = () => {
       if (input.topic) return `Topic: ${input.topic}`;
       if (input.filename) return input.filename;
       if (input.recipientName) return `To: ${input.recipientName} (${input.companyName})`;
-      if (input.keywords && input.keywords.length > 0) return `Keywords: ${input.keywords.slice(0, 2).join(', ')}`;
+      if (input.keywords && input.location) return `${input.keywords} (${input.location})`;
+      if (input.keywords && input.keywords.length > 0) return `Keywords: ${Array.isArray(input.keywords) ? input.keywords.slice(0, 2).join(', ') : input.keywords}`;
     } catch {
       // ignore
     }

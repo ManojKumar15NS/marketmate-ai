@@ -21,7 +21,9 @@ import {
   DiscoveredContact,
   EmailSearchRun,
   HunterSettings,
-  BackgroundJob
+  BackgroundJob,
+  WhatsAppSearchParams,
+  WhatsAppSearchRun
 } from '../types';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '') + '/api';
@@ -886,6 +888,34 @@ export const api = {
   async getAuthStatus(): Promise<{ success: boolean; data: { authRequired: boolean; authMode: string } }> {
     return safeRequest(`${API_BASE}/auth/status`);
   },
+
+  // --- WHATSAPP NUMBER FINDER AGENT ---
+  async searchWhatsApp(params: WhatsAppSearchParams & { asyncJob?: boolean }): Promise<{ success: boolean; data: WhatsAppSearchRun | { jobId: string; status: string } }> {
+    return safeRequest(`${API_BASE}/whatsapp/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    });
+  },
+
+  async getWhatsAppSearches(): Promise<{ success: boolean; data: WhatsAppSearchRun[] }> {
+    return safeRequest(`${API_BASE}/whatsapp/searches`);
+  },
+
+  async getWhatsAppSearch(id: string): Promise<{ success: boolean; data: WhatsAppSearchRun }> {
+    return safeRequest(`${API_BASE}/whatsapp/searches/${id}`);
+  },
+
+  async deleteWhatsAppSearch(id: string): Promise<{ success: boolean }> {
+    return safeRequest(`${API_BASE}/whatsapp/searches/${id}`, {
+      method: 'DELETE'
+    });
+  },
+
+  getWhatsAppExportUrl(format: 'csv' | 'xlsx' | 'vcf', searchId?: string): string {
+    const query = searchId ? `?searchId=${encodeURIComponent(searchId)}` : '';
+    return `${API_BASE}/whatsapp/export.${format}${query}`;
+  }
 };
 
 export default api;

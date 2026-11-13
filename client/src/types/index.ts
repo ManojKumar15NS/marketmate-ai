@@ -42,7 +42,7 @@ export interface AppStats {
 
 export interface BackgroundJob {
   jobId: string;
-  agentId: 'prospector' | 'seo' | 'research' | 'email_finder' | 'document' | 'email' | 'content' | 'seo_editor';
+  agentId: 'prospector' | 'seo' | 'research' | 'email_finder' | 'document' | 'email' | 'content' | 'seo_editor' | 'whatsapp';
   companyId: string | null;
   researchId: string | null;
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
@@ -812,3 +812,51 @@ export interface GeoSchemasResult {
   jsonLdCombined: string;
   disclaimer: string;
 }
+
+export interface WhatsAppLead {
+  id: string;
+  businessName: string;
+  category: string;
+  phoneRaw: string;
+  phoneInternational: string; // E.164 formatted (e.g. +91 98450 12345)
+  phoneDigitsOnly: string; // Clean numeric string (e.g. 919845012345)
+  whatsappUrl: string; // Direct https://wa.me/919845012345?text=...
+  address: string;
+  city: string;
+  state?: string;
+  country: string;
+  website?: string;
+  sourceTitle?: string;
+  sourceUrl?: string;
+  confidence: 'high' | 'medium' | 'low';
+  isMobile: boolean;
+  notes?: string;
+  discoveredAt: string;
+}
+
+export interface WhatsAppSearchParams {
+  keywords: string;
+  location: string;
+  countryCode?: string; // e.g. '+91', '+1', '+971', '+44'
+  limit?: number;
+  messageTemplate?: string;
+}
+
+export interface WhatsAppSearchRun {
+  id: string;
+  keywords: string;
+  location: string;
+  countryCode: string;
+  requestedLimit: number;
+  actualDiscoveredCount: number;
+  messageTemplate?: string;
+  stats: {
+    totalFound: number;
+    mobileVerified: number;
+    highConfidence: number;
+    withWebsite: number;
+  };
+  leads: WhatsAppLead[];
+  createdAt: string;
+}
+
