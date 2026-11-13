@@ -826,8 +826,15 @@ export interface WhatsAppLead {
   state?: string;
   country: string;
   website?: string;
+  googleProfileUrl?: string; // Google Business Profile or Google Maps URL
+  linkedinUrl?: string; // LinkedIn Company or Clinic page
+  email?: string; // Publicly listed contact email
+  rating?: string; // e.g. "4.8 ★ (1,240 reviews)" or "4.5/5"
+  operatingHours?: string; // e.g. "Mon-Sat 9 AM - 8 PM" or "Open 24/7"
+  sourceEvidence?: string;
   sourceTitle?: string;
   sourceUrl?: string;
+  sourceType?: 'google_business' | 'official_website' | 'linkedin' | 'directory_listing' | 'live_web';
   confidence: 'high' | 'medium' | 'low';
   isMobile: boolean;
   notes?: string;
@@ -853,8 +860,10 @@ export interface WhatsAppSearchRun {
   stats: {
     totalFound: number;
     mobileVerified: number;
-    highConfidence: number;
+    withGoogleProfile: number;
+    withLinkedIn: number;
     withWebsite: number;
+    highConfidence: number;
   };
   leads: WhatsAppLead[];
   createdAt: string;
