@@ -397,15 +397,124 @@ export interface EmailSearchRun {
   createdAt: string;
 }
 
+export type LineType = 'mobile' | 'landline' | 'toll_free' | 'unknown';
+export type UsageType = 'business_reception' | 'direct_decision_maker' | 'department' | 'unknown';
+export type WhatsAppStatus =
+  | 'mobile_confirmed'
+  | 'whatsapp_verified'
+  | 'mobile_status_unknown'
+  | 'landline'
+  | 'invalid_or_disconnected'
+  | 'unverified';
+
+export type EmploymentVerificationStatus =
+  | 'verified'
+  | 'partially_verified'
+  | 'unverified'
+  | 'rejected';
+
+export type RoleCategory =
+  | 'founder'
+  | 'c_level'
+  | 'director'
+  | 'head_of_dept'
+  | 'manager'
+  | 'medical_director'
+  | 'other';
+
+export interface ScoreBreakdown {
+  score: number; // 0 - 100
+  reasons: string[];
+}
+
+export interface ContactPhone {
+  id: string;
+  originalNumber: string;
+  e164Number: string; // e.g. +91 95918 06061
+  digitsOnly: string; // e.g. 919591806061
+  countryCode: string;
+  lineType: LineType;
+  usageType: UsageType;
+  whatsappStatus: WhatsAppStatus;
+  whatsappUrl?: string; // e.g. https://wa.me/919591806061?text=...
+  associatedPersonId?: string;
+  associatedPersonName?: string;
+  sourceUrl?: string;
+  verificationMethod: string;
+  lastVerifiedDate: string;
+}
+
+export interface B2BDecisionMaker {
+  id: string;
+  name: string;
+  designation: string;
+  roleCategory: RoleCategory;
+  companyName: string;
+  companyId: string;
+  branchLocation?: string;
+  linkedinUrl?: string;
+  email?: string;
+  emailVerificationStatus?: 'Verified' | 'Publicly listed' | 'Unverified' | 'Not found';
+  phone?: string;
+  phoneE164?: string;
+  phoneLineType?: LineType;
+  whatsappStatus?: WhatsAppStatus;
+  whatsappUrl?: string;
+  employmentStatus: EmploymentVerificationStatus;
+  confidenceScore: number; // 0 - 100
+  sourceUrls: string[];
+  sourceEvidence: string;
+  discoveredAt: string;
+}
+
+export interface BranchInfo {
+  isBranch: boolean;
+  parentBrand: string;
+  branchName: string;
+  headquartersCity?: string;
+}
+
+export interface CompanyLead {
+  id: string;
+  businessName: string;
+  brandName: string;
+  branchInfo?: BranchInfo;
+  industry: string;
+  category: string;
+  address: string;
+  locality: string;
+  city: string;
+  state?: string;
+  country: string;
+  website?: string;
+  googleProfileUrl?: string;
+  linkedinUrl?: string;
+  rating?: string;
+  reviewCount?: number;
+  operatingHours?: string;
+  phones: ContactPhone[];
+  decisionMakers: B2BDecisionMaker[];
+  companyFitScore: ScoreBreakdown;
+  contactQualityScore: ScoreBreakdown;
+  totalScore: number; // 0 - 100
+  sourceType: 'google_business' | 'official_website' | 'linkedin' | 'directory_listing' | 'live_web';
+  sourceUrls: string[];
+  sourceEvidence?: string;
+  verificationStatus: 'verified' | 'partially_verified' | 'unverified';
+  discoveredAt: string;
+}
+
 export interface WhatsAppLead {
   id: string;
   businessName: string;
+  brandName?: string;
   category: string;
   phoneRaw: string;
   phoneInternational: string; // E.164 formatted (e.g. +91 98450 12345)
   phoneDigitsOnly: string; // Clean numeric string (e.g. 919845012345)
   whatsappUrl: string; // Direct https://wa.me/919845012345?text=...
   address: string;
+  locality?: string;
   city: string;
   state?: string;
   country: string;
@@ -423,33 +532,71 @@ export interface WhatsAppLead {
   isMobile: boolean;
   notes?: string;
   discoveredAt: string;
+
+  // Enriched B2B Lead Intelligence Fields
+  branchInfo?: BranchInfo;
+  decisionMakers?: B2BDecisionMaker[];
+  phones?: ContactPhone[];
+  scores?: {
+    companyFitScore: number;
+    contactQualityScore: number;
+    totalScore: number;
+    fitReasons?: string[];
+    qualityReasons?: string[];
+  };
+}
+
+export interface SearchCoverageStats {
+  zonesAttempted: string[];
+  zonesCompleted: string[];
+  sourcesQueried: string[];
+  totalDiscovered: number;
+  uniqueBusinesses: number;
+  duplicatesRemoved: number;
+  remainingCoverageNote: string;
 }
 
 export interface WhatsAppSearchParams {
   keywords: string;
+  industry?: string;
   location: string;
+  city?: string;
+  state?: string;
   countryCode?: string; // e.g. '+91', '+1', '+971', '+44'
-  limit?: number;
+  localities?: string[];
+  limit?: number; // Target limit (e.g. 25, 50, 100, 200)
   messageTemplate?: string;
+  includeDecisionMakers?: boolean;
+  deepEnrichment?: boolean;
 }
 
 export interface WhatsAppSearchRun {
   id: string;
   keywords: string;
+  industry?: string;
   location: string;
+  city?: string;
   countryCode: string;
   requestedLimit: number;
   actualDiscoveredCount: number;
   messageTemplate?: string;
   stats: {
     totalFound: number;
+    uniqueCompanies: number;
+    duplicatesRemoved: number;
+    decisionMakersFound: number;
     mobileVerified: number;
+    whatsappConfirmed: number;
     withGoogleProfile: number;
     withLinkedIn: number;
     withWebsite: number;
+    professionalEmailsFound: number;
     highConfidence: number;
   };
+  coverage?: SearchCoverageStats;
   leads: WhatsAppLead[];
+  decisionMakers?: B2BDecisionMaker[];
+  companies?: CompanyLead[];
   createdAt: string;
 }
 

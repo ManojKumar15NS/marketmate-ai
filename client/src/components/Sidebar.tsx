@@ -19,7 +19,8 @@ import {
   UserCheck,
   Users,
   AtSign,
-  MessageSquare
+  MessageSquare,
+  Building2
 } from 'lucide-react';
 import { SystemSettings } from '../types';
 
@@ -124,10 +125,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ settings, onNewChat }) => {
             </NavLink>
             <NavLink to="/whatsapp" className={navItemClass}>
               <div className="flex items-center gap-2.5">
-                <MessageSquare className="w-4 h-4 text-emerald-600" />
-                <span>WhatsApp Finder</span>
+                <Building2 className="w-4 h-4 text-emerald-600" />
+                <span>Business & Decision-Maker Finder</span>
               </div>
-              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700">NEW</span>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700">AI</span>
             </NavLink>
             <NavLink to="/seo-editor" className={navItemClass}>
               <div className="flex items-center gap-2.5">

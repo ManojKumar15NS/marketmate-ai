@@ -2,7 +2,7 @@ import pg from 'pg';
 import fs from 'fs';
 import path from 'path';
 import dns from 'dns';
-import { INITIAL_SCHEMA_SQL, GTM_PLATFORM_SCHEMA_SQL, CONTENT_AND_EDITOR_COLUMNS_SQL, WHATSAPP_SEARCHES_SQL } from './migrations/schemaSql.js';
+import { INITIAL_SCHEMA_SQL, GTM_PLATFORM_SCHEMA_SQL, CONTENT_AND_EDITOR_COLUMNS_SQL, WHATSAPP_SEARCHES_SQL, B2B_LEAD_INTELLIGENCE_SQL } from './migrations/schemaSql.js';
 
 // Setup resilient DNS resolution for cloud Postgres hosts (Neon / AWS / Supabase)
 try {
@@ -135,7 +135,13 @@ export class PostgresDb {
         );
       `);
 
-      const migrationFiles = ['001_initial_schema.sql', '002_gtm_platform_schema.sql', '003_content_and_editor_columns.sql', '004_whatsapp_searches.sql'];
+      const migrationFiles = [
+        '001_initial_schema.sql',
+        '002_gtm_platform_schema.sql',
+        '003_content_and_editor_columns.sql',
+        '004_whatsapp_searches.sql',
+        '005_b2b_lead_intelligence.sql'
+      ];
       const migrationsDir = path.resolve(__dirname, 'migrations');
 
       for (const file of migrationFiles) {
@@ -153,6 +159,8 @@ export class PostgresDb {
             sql = CONTENT_AND_EDITOR_COLUMNS_SQL;
           } else if (file === '004_whatsapp_searches.sql') {
             sql = WHATSAPP_SEARCHES_SQL;
+          } else if (file === '005_b2b_lead_intelligence.sql') {
+            sql = B2B_LEAD_INTELLIGENCE_SQL;
           }
 
           if (sql) {

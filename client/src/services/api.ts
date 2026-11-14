@@ -912,9 +912,15 @@ export const api = {
     });
   },
 
-  getWhatsAppExportUrl(format: 'csv' | 'xlsx' | 'vcf', searchId?: string): string {
-    const query = searchId ? `?searchId=${encodeURIComponent(searchId)}` : '';
-    return `${API_BASE}/whatsapp/export.${format}${query}`;
+  getWhatsAppExportUrl(format: 'csv' | 'xlsx' | 'vcf' | 'hubspot' | 'salesforce' | 'zoho', searchId?: string): string {
+    const params = new URLSearchParams();
+    if (searchId) params.set('searchId', searchId);
+    if (format === 'hubspot' || format === 'salesforce' || format === 'zoho') {
+      params.set('format', format);
+      return `${API_BASE}/whatsapp/export.csv?${params.toString()}`;
+    }
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return `${API_BASE}/whatsapp/export.${format}${qs}`;
   }
 };
 

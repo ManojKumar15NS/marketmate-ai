@@ -67,7 +67,7 @@ function AppLayout() {
       case '/email-finder':
         return { title: 'Email Finder', subtitle: 'Discover verified professional emails across companies and keyword networks' };
       case '/whatsapp':
-        return { title: 'WhatsApp Number Finder', subtitle: 'Keyword & location-based verified WhatsApp business lead discovery' };
+        return { title: 'Business & Decision-Maker Intelligence Agent', subtitle: 'Large-scale B2B company discovery, authorized leadership identification & WhatsApp outreach' };
       case '/knowledge':
         return { title: 'Knowledge Base', subtitle: 'Company profile & persistent business memory' };
       case '/settings':
