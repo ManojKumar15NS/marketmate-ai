@@ -51,6 +51,10 @@ async function safeRequest<T>(url: string, options?: RequestInit): Promise<T> {
   try {
     res = await fetch(url, mergedOptions);
   } catch (err: any) {
+    const rawMsg = err?.message || '';
+    if (rawMsg.includes('Failed to fetch') || rawMsg.includes('NetworkError') || rawMsg.includes('Load failed')) {
+      throw new Error(`Unable to reach the backend server at ${url}. If using a cloud backend (e.g. Render), it may still be waking from cold sleep, or the connection timed out. Please retry in a few moments.`);
+    }
     throw new Error(err?.message || 'Network error: Unable to connect to server.');
   }
 

@@ -567,7 +567,7 @@ Rules:
       industry,
       location,
       countryCode = '+91',
-      limit = 25,
+      limit,
       messageTemplate,
       includeDecisionMakers = true
     } = params;
@@ -582,11 +582,14 @@ Rules:
     onProgress?.(5, `Stage 1/10: Resolving geographic search zones for "${location}"...`);
 
     const { city, zones } = this.resolveSearchZones(location, params.localities);
-    logger.info(`[B2BDiscoveryEngine] Search initiated: "${keywords}" in ${city} across ${zones.length} zones. Target: ${limit}`);
+    const hasLimit = typeof limit === 'number' && limit > 0;
+    const targetDesc = hasLimit ? `${limit} businesses` : 'unlimited comprehensive coverage';
+    logger.info(`[B2BDiscoveryEngine] Search initiated: "${keywords}" in ${city} across ${zones.length} zones. Target: ${targetDesc}`);
 
     // Track coverage statistics
     const zonesAttempted: string[] = [];
     const zonesCompleted: string[] = [];
+    const unsearchedZones: string[] = [];
     const sourcesQueried = [
       'Google Search Grounding (Gemini 2.5 Flash)',
       'Google Maps & Google Business Profiles',
@@ -600,10 +603,10 @@ Rules:
     const rawEstablishments: any[] = [];
     const seenNamesAndLocalities = new Set<string>();
 
-    // Calculate how many zones to scan to satisfy limit
-    // Each zone yields 4-10 high quality businesses
-    const zonesToScanCount = Math.min(zones.length, Math.max(Math.ceil(limit / 5), 3));
-    const activeZones = zones.slice(0, zonesToScanCount);
+    // When unlimited, scan through all resolved geographic zones for the city
+    const activeZones = hasLimit
+      ? zones.slice(0, Math.min(zones.length, Math.max(Math.ceil(limit / 5), 3)))
+      : zones;
 
     onProgress?.(15, `Stage 2/10: Launching geographic search across ${activeZones.length} key zones in ${city}...`);
 
@@ -617,7 +620,7 @@ Rules:
       const zonePrompt = `Search Google Maps, Google My Business Profiles, Practo, Justdial, Sulekha, and official listings for real commercial businesses matching:
 Industry / Keywords: "${keywords}" ${industry ? `(${industry})` : ''}
 Specific Zone / Locality: "${zone}", ${city}
-Country: "${countryCode === '+91' ? 'India' : 'International'}"
+Country: "${params.country || (countryCode === '+91' ? 'India' : 'International')}"
 
 Find at least 10 real commercial establishments in or immediately adjacent to ${zone}.
 For EACH establishment provide:
@@ -696,8 +699,8 @@ Format:
         }
       }
 
-      // Check if we already have sufficient leads to satisfy budget + buffer
-      if (rawEstablishments.length >= limit * 1.5) {
+      // Check if we already have sufficient leads to satisfy budget + buffer (when limit specified)
+      if (hasLimit && rawEstablishments.length >= (limit as number) * 1.5) {
         break;
       }
     }
@@ -807,7 +810,7 @@ Format:
         discoveredAt: new Date().toISOString()
       });
 
-      if (uniqueCompanies.length >= limit) {
+      if (hasLimit && uniqueCompanies.length >= (limit as number)) {
         break;
       }
     }
@@ -915,7 +918,9 @@ Format:
       totalDiscovered: totalRawDiscovered,
       uniqueBusinesses: uniqueCompanies.length,
       duplicatesRemoved,
-      remainingCoverageNote: `${zones.length - zonesCompleted.length} additional local zones available in ${city} for broader expansion.`
+      remainingCoverageNote: activeZones.length < zones.length
+        ? `${zones.length - zonesCompleted.length} additional local zones available in ${city} for broader expansion.`
+        : `Full geographic zone coverage completed across all ${zonesCompleted.length} search zones in ${city}.`
     };
 
     const searchRunResult: WhatsAppSearchRun = {
@@ -925,7 +930,7 @@ Format:
       location: `${city}, ${countryCode === '+91' ? 'India' : 'International'}`,
       city,
       countryCode,
-      requestedLimit: limit,
+      requestedLimit: limit || 0,
       actualDiscoveredCount: uniqueCompanies.length,
       messageTemplate,
       stats: {

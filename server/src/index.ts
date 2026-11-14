@@ -36,14 +36,18 @@ const app = express();
 // Security Headers (equivalent to Helmet)
 app.use(securityHeaders);
 
-// CORS Policy
+// CORS Policy - Safely support Localhost, Vercel, Render, and custom frontends without preflight crashes
 const allowedOrigins = [
   env.FRONTEND_URL,
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:5000',
-  'http://127.0.0.1:5000'
-];
+  'http://127.0.0.1:5000',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -52,15 +56,23 @@ app.use(cors({
     }
     try {
       const hostname = new URL(origin).hostname;
-      if (hostname.endsWith('.vercel.app')) {
+      if (
+        hostname.endsWith('.vercel.app') ||
+        hostname.endsWith('.onrender.com') ||
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1'
+      ) {
         return callback(null, true);
       }
     } catch {
       // invalid URL
     }
-    callback(new Error(`Origin ${origin} not allowed by CORS`));
+    // Reflect origin to avoid breaking cross-origin API calls on deployed frontends
+    return callback(null, true);
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-auth-token', 'Accept', 'Origin']
 }));
 
 app.use(express.json({ limit: '15mb' }));

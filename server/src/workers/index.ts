@@ -260,18 +260,21 @@ Generate:
     return { analysis, suggestions };
   });
 
-  // 9. WhatsApp Number Finder Worker
+  // 9. WhatsApp Number & B2B Lead Intelligence Worker
   jobService.registerAgentHandler('whatsapp', async (input: any, updateProgress: JobProgressCallback, signal: AbortSignal) => {
     if (!input || !input.keywords || !input.location) {
-      throw new Error('WhatsApp Finder requires "keywords" (business category) and "location" (city/area).');
+      throw new Error('B2B Business Finder requires "keywords" (business category) and "location" (city/area).');
     }
 
     const result = await whatsappFinderService.search({
       keywords: input.keywords,
+      industry: input.industry,
       location: input.location,
       countryCode: input.countryCode || '+91',
-      limit: input.limit || 15,
-      messageTemplate: input.messageTemplate
+      limit: input.limit,
+      localities: input.localities,
+      messageTemplate: input.messageTemplate,
+      includeDecisionMakers: input.includeDecisionMakers !== false
     }, (percent, stage) => {
       if (signal.aborted) throw new Error('Job cancelled');
       updateProgress(percent, stage);
@@ -279,7 +282,8 @@ Generate:
 
     await store.saveWhatsAppSearch(result);
 
-    updateProgress(100, `Found ${result.leads.length} verified WhatsApp business contacts in ${input.location}.`, result);
+    const dmCount = result.decisionMakers ? result.decisionMakers.length : 0;
+    updateProgress(100, `Completed! Discovered ${result.leads.length} verified companies & ${dmCount} authorized decision-makers in ${input.location}.`, result);
     return result;
   });
 

@@ -978,9 +978,10 @@ export interface WhatsAppSearchParams {
   location: string;
   city?: string;
   state?: string;
+  country?: string;
   countryCode?: string; // e.g. '+91', '+1', '+971', '+44'
   localities?: string[];
-  limit?: number; // Target limit (e.g. 25, 50, 100, 200)
+  limit?: number; // Target limit (optional, unlimited if omitted)
   messageTemplate?: string;
   includeDecisionMakers?: boolean;
   deepEnrichment?: boolean;
@@ -993,7 +994,7 @@ export interface WhatsAppSearchRun {
   location: string;
   city?: string;
   countryCode: string;
-  requestedLimit: number;
+  requestedLimit?: number;
   actualDiscoveredCount: number;
   messageTemplate?: string;
   stats: {
