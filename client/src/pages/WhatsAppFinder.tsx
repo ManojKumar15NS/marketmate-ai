@@ -32,10 +32,12 @@ import {
   Info,
   AlertCircle,
   History,
-  X
+  X,
+  Compass
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useJobs } from '../context/JobContext';
+import { CompanyDetailModal } from '../components/CompanyDetailModal';
 import { WhatsAppLead, WhatsAppSearchRun, B2BDecisionMaker, RoleCategory } from '../types';
 
 export interface CountryOption {
@@ -79,7 +81,7 @@ export const WORLD_COUNTRIES: CountryOption[] = [
   { name: 'Turkey', code: '+90', flag: '🇹🇷' },
   { name: 'Poland', code: '+48', flag: '🇵🇱' },
   { name: 'Nigeria', code: '+234', flag: '🇳🇬' },
-  { name: 'Kenya', code: '+254', flag: 'KE' },
+  { name: 'Kenya', code: '+254', flag: '🇰🇪' },
   { name: 'Egypt', code: '+20', flag: '🇪🇬' },
   { name: 'Israel', code: '+972', flag: '🇮🇱' },
   { name: 'Vietnam', code: '+84', flag: '🇻🇳' },
@@ -120,6 +122,7 @@ export const WhatsAppFinder: React.FC = () => {
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedLeadForModal, setSelectedLeadForModal] = useState<WhatsAppLead | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Filter criteria
@@ -151,7 +154,7 @@ export const WhatsAppFinder: React.FC = () => {
         if (res && res.success && res.data) {
           const job = res.data;
           setDiscoveryProgress(job.progress || 0);
-          setDiscoveryStage(job.currentStage || 'Discovering verified establishments & leadership...');
+          setDiscoveryStage(job.currentStage || 'Discovering verified establishments, Google Maps data & leadership...');
 
           if (job.status === 'completed') {
             setIsDiscovering(false);
@@ -359,13 +362,15 @@ export const WhatsAppFinder: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-gray-900 tracking-tight">B2B Business & Decision-Maker Finder</h1>
+                <h1 className="text-xl font-bold text-gray-900 tracking-tight">
+                  B2B Business, Google Maps & Decision-Maker Finder
+                </h1>
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
-                  Live Grounded
+                  Google Maps Grounded
                 </span>
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                Discover verified companies, authorized leadership, and WhatsApp-ready contacts worldwide.
+                Discover verified companies with Google Maps listings, websites, direct phone numbers, and authorized leadership.
               </p>
             </div>
 
@@ -598,7 +603,7 @@ export const WhatsAppFinder: React.FC = () => {
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                 }`}
               >
-                Businesses ({displayedLeads.length})
+                Businesses & Maps ({displayedLeads.length})
               </button>
 
               <button
@@ -865,7 +870,7 @@ export const WhatsAppFinder: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 1: BUSINESSES */}
+          {/* TAB 1: BUSINESSES & GOOGLE MAPS PROFILES */}
           {activeTab === 'businesses' && (
             displayedLeads.length === 0 ? (
               <div className="text-center py-12 px-4">
@@ -876,120 +881,182 @@ export const WhatsAppFinder: React.FC = () => {
             ) : viewMode === 'cards' ? (
               <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 bg-gray-50/40">
                 {displayedLeads.map((lead) => {
-                  const fitScore = lead.scores?.companyFitScore || 75;
                   const totalScore = lead.scores?.totalScore || 75;
                   const dms = lead.decisionMakers || [];
+                  const primaryPhone = lead.phoneInternational || lead.phoneRaw;
+                  const alternatePhones = (lead.phones || []).filter(
+                    (p) => (p.e164Number || p.originalNumber) !== lead.phoneInternational && (p.originalNumber || p.e164Number) !== lead.phoneRaw
+                  );
+                  const mapsUrl =
+                    lead.googleProfileUrl ||
+                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      `${lead.businessName} ${lead.address || lead.locality || lead.city}`
+                    )}`;
+                  const cleanWebsite = lead.website
+                    ? lead.website.startsWith('http')
+                      ? lead.website
+                      : `https://${lead.website}`
+                    : null;
+                  const websiteDomain = cleanWebsite
+                    ? cleanWebsite.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]
+                    : null;
 
                   return (
                     <div
                       key={lead.id}
-                      className="bg-white border border-gray-200 rounded-xl p-4 shadow-xs hover:border-purple-300 transition-all flex flex-col justify-between space-y-3"
+                      className="bg-white border border-gray-200 rounded-xl p-4 shadow-xs hover:border-purple-300 hover:shadow-md transition-all flex flex-col justify-between space-y-3"
                     >
-                      <div>
-                        {/* Title & Brand */}
+                      <div className="space-y-2.5">
+                        {/* Company Header: Name, Brand, Category & Score */}
                         <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <h3 className="text-sm font-bold text-gray-900 leading-snug line-clamp-2">
+                          <div className="flex-1 min-w-0">
+                            <h3
+                              onClick={() => setSelectedLeadForModal(lead)}
+                              className="text-sm font-bold text-gray-900 leading-snug line-clamp-2 cursor-pointer hover:text-purple-700 transition"
+                              title="Click to view full Google Maps & leadership details"
+                            >
                               {lead.businessName}
                             </h3>
-                            {lead.brandName && lead.brandName !== lead.businessName && (
-                              <span className="inline-block text-[10px] text-gray-400 mt-0.5">
-                                Part of <span className="font-semibold text-gray-600">{lead.brandName}</span>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                              {lead.brandName && lead.brandName !== lead.businessName && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+                                  Part of {lead.brandName}
+                                </span>
+                              )}
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700">
+                                {lead.category || 'Business'}
                               </span>
-                            )}
+                            </div>
                           </div>
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 shrink-0">
                             Score {totalScore}
                           </span>
                         </div>
 
-                        {/* Locality & Address */}
-                        <div className="flex items-start gap-1.5 text-xs text-gray-600 mt-2">
-                          <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
-                          <span className="line-clamp-2">{lead.address}</span>
-                        </div>
-
-                        {/* Phone Details */}
-                        <div className="mt-2.5 pt-2.5 border-t border-gray-100 flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-1.5">
-                            <Phone className="w-3.5 h-3.5 text-gray-400" />
-                            <span className="font-semibold text-gray-800">{lead.phoneInternational || lead.phoneRaw || 'Unlisted'}</span>
+                        {/* 1. Google Maps & Physical Address Box */}
+                        <div className="bg-gray-50/80 p-2.5 rounded-lg border border-gray-100 space-y-1.5 text-xs">
+                          <div className="flex items-start gap-1.5 text-gray-700">
+                            <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
+                            <span className="line-clamp-2 leading-relaxed">{lead.address}</span>
                           </div>
-                          {lead.isMobile ? (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              WhatsApp Ready
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-gray-400">Reception Line</span>
+
+                          <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-gray-200/60">
+                            <a
+                              href={mapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              <ExternalLink className="w-3 h-3 text-blue-600" />
+                              <span>View on Google Maps</span>
+                            </a>
+
+                            {lead.rating && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                <span>{lead.rating}</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {lead.operatingHours && (
+                            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 pt-0.5">
+                              <Clock className="w-3 h-3 text-gray-400 shrink-0" />
+                              <span className="truncate">{lead.operatingHours}</span>
+                            </div>
                           )}
                         </div>
 
-                        {/* Rating & Decision Makers */}
-                        <div className="mt-2 flex items-center justify-between text-[11px] text-gray-500">
-                          {lead.rating ? (
-                            <span className="flex items-center gap-1 text-amber-600 font-medium">
-                              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                              {lead.rating}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">Unrated</span>
-                          )}
-
-                          {dms.length > 0 && (
-                            <span className="font-medium text-purple-700 flex items-center gap-1">
-                              <Users className="w-3 h-3" />
-                              {dms.length} Leader{dms.length > 1 ? 's' : ''}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Card Actions */}
-                      <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between gap-2">
-                        {lead.isMobile && lead.whatsappUrl ? (
-                          <a
-                            href={lead.whatsappUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition"
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            <span>WhatsApp</span>
-                          </a>
-                        ) : (
-                          <button
-                            onClick={() => handleCopy(lead.phoneInternational || lead.phoneRaw, lead.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
-                          >
-                            {copiedId === lead.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                            <span>{copiedId === lead.id ? 'Copied' : 'Copy'}</span>
-                          </button>
+                        {/* 2. Official Website Link */}
+                        {cleanWebsite && (
+                          <div className="flex items-center justify-between text-xs px-1">
+                            <div className="flex items-center gap-1.5 text-gray-600 truncate">
+                              <Globe className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              <span className="truncate font-medium text-gray-700">{websiteDomain}</span>
+                            </div>
+                            <a
+                              href={cleanWebsite}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] font-semibold text-purple-600 hover:text-purple-800 hover:underline shrink-0"
+                            >
+                              Visit Website ↗
+                            </a>
+                          </div>
                         )}
 
-                        <div className="flex items-center gap-1.5">
-                          {lead.website && (
-                            <a
-                              href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 text-gray-400 hover:text-purple-600 transition"
-                              title="Website"
-                            >
-                              <Globe className="w-3.5 h-3.5" />
-                            </a>
-                          )}
-                          {lead.googleProfileUrl && (
-                            <a
-                              href={lead.googleProfileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 text-gray-400 hover:text-blue-600 transition"
-                              title="Google Profile"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </a>
+                        {/* 3. Phone Numbers & WhatsApp Readiness */}
+                        <div className="pt-2 border-t border-gray-100 space-y-1.5 text-xs">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <Phone className="w-3.5 h-3.5 text-gray-500" />
+                              <span className="font-bold text-gray-900">{primaryPhone || 'Unlisted'}</span>
+                            </div>
+                            {lead.isMobile ? (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                WhatsApp Ready
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+                                Reception Landline
+                              </span>
+                            )}
+                          </div>
+
+                          {alternatePhones.length > 0 && (
+                            <div className="text-[11px] text-gray-500 pl-5">
+                              <span className="text-gray-400">Alt:</span>{' '}
+                              {alternatePhones.map((p) => p.e164Number || p.originalNumber).join(', ')}
+                            </div>
                           )}
                         </div>
+
+                        {/* 4. Decision-Makers Preview */}
+                        {dms.length > 0 && (
+                          <div className="pt-1.5 flex items-center justify-between text-[11px] text-gray-600">
+                            <span className="font-medium text-purple-700 flex items-center gap-1">
+                              <Users className="w-3 h-3" />
+                              {dms.length} Decision-Maker{dms.length > 1 ? 's' : ''} Found
+                            </span>
+                            <span className="text-[10px] text-gray-400 truncate max-w-[140px]">
+                              {dms[0].name} ({dms[0].designation})
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Card Footer Actions */}
+                      <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          {lead.isMobile && lead.whatsappUrl ? (
+                            <a
+                              href={lead.whatsappUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span>WhatsApp</span>
+                            </a>
+                          ) : null}
+
+                          {primaryPhone && (
+                            <button
+                              onClick={() => handleCopy(primaryPhone, lead.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+                            >
+                              {copiedId === lead.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                              <span>{copiedId === lead.id ? 'Copied' : 'Copy'}</span>
+                            </button>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => setSelectedLeadForModal(lead)}
+                          className="text-xs font-semibold text-purple-700 hover:text-purple-900 hover:underline"
+                        >
+                          View Full Details →
+                        </button>
                       </div>
                     </div>
                   );
@@ -1000,55 +1067,136 @@ export const WhatsAppFinder: React.FC = () => {
                 <table className="w-full text-xs text-left">
                   <thead className="bg-gray-50 text-gray-500 uppercase tracking-wider font-semibold border-b border-gray-200">
                     <tr>
-                      <th className="px-4 py-3">Business Name & Branch</th>
-                      <th className="px-4 py-3">Locality</th>
-                      <th className="px-4 py-3">Contact Number</th>
+                      <th className="px-4 py-3">Business & Category</th>
+                      <th className="px-4 py-3">Google Maps & Address</th>
+                      <th className="px-4 py-3">Rating & Hours</th>
+                      <th className="px-4 py-3">Contact Phone</th>
                       <th className="px-4 py-3">Line Type</th>
+                      <th className="px-4 py-3">Website</th>
                       <th className="px-4 py-3">Decision-Makers</th>
-                      <th className="px-4 py-3">Score</th>
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {displayedLeads.map((lead) => (
-                      <tr key={lead.id} className="hover:bg-gray-50/70 transition">
-                        <td className="px-4 py-3">
-                          <div className="font-bold text-gray-900">{lead.businessName}</div>
-                          {lead.brandName && lead.brandName !== lead.businessName && (
-                            <div className="text-[10px] text-gray-400">{lead.brandName}</div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-gray-600">{lead.locality || lead.city}</td>
-                        <td className="px-4 py-3 font-medium text-gray-800">
-                          {lead.phoneInternational || lead.phoneRaw || 'N/A'}
-                        </td>
-                        <td className="px-4 py-3">
-                          {lead.isMobile ? (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              Mobile
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 text-[11px]">Landline</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-purple-700 font-semibold">
-                          {(lead.decisionMakers || []).length}
-                        </td>
-                        <td className="px-4 py-3 font-bold text-gray-900">{lead.scores?.totalScore || 75}</td>
-                        <td className="px-4 py-3 text-right space-x-2">
-                          {lead.isMobile && lead.whatsappUrl && (
+                    {displayedLeads.map((lead) => {
+                      const mapsUrl =
+                        lead.googleProfileUrl ||
+                        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                          `${lead.businessName} ${lead.address || lead.locality || lead.city}`
+                        )}`;
+                      const cleanWebsite = lead.website
+                        ? lead.website.startsWith('http')
+                          ? lead.website
+                          : `https://${lead.website}`
+                        : null;
+                      const websiteDomain = cleanWebsite
+                        ? cleanWebsite.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]
+                        : null;
+
+                      return (
+                        <tr key={lead.id} className="hover:bg-gray-50/70 transition">
+                          <td className="px-4 py-3">
+                            <div
+                              onClick={() => setSelectedLeadForModal(lead)}
+                              className="font-bold text-gray-900 cursor-pointer hover:text-purple-700"
+                            >
+                              {lead.businessName}
+                            </div>
+                            <div className="text-[10px] text-gray-500">
+                              {lead.brandName && lead.brandName !== lead.businessName
+                                ? `Branch of ${lead.brandName}`
+                                : lead.category || 'Business'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 max-w-xs">
+                            <div className="line-clamp-2 text-gray-600">{lead.address}</div>
                             <a
-                              href={lead.whatsappUrl}
+                              href={mapsUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-emerald-600 hover:text-emerald-700 font-semibold"
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:underline mt-0.5"
                             >
-                              WhatsApp
+                              <MapPin className="w-3 h-3 text-red-500" />
+                              <span>Google Maps ↗</span>
                             </a>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="px-4 py-3">
+                            {lead.rating ? (
+                              <div className="flex items-center gap-1 text-amber-600 font-semibold">
+                                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                <span>{lead.rating}</span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">Unrated</span>
+                            )}
+                            {lead.operatingHours && (
+                              <div className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[130px]" title={lead.operatingHours}>
+                                {lead.operatingHours}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="font-bold text-gray-800">{lead.phoneInternational || lead.phoneRaw || 'N/A'}</div>
+                            {lead.phones && lead.phones.length > 1 && (
+                              <div className="text-[10px] text-gray-400">+{lead.phones.length - 1} alternate</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {lead.isMobile ? (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Mobile (WhatsApp)
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+                                Landline
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {cleanWebsite ? (
+                              <a
+                                href={cleanWebsite}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-purple-600 hover:text-purple-800 hover:underline font-medium truncate max-w-[120px] block"
+                                title={cleanWebsite}
+                              >
+                                {websiteDomain}
+                              </a>
+                            ) : (
+                              <span className="text-gray-400">None</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {lead.decisionMakers && lead.decisionMakers.length > 0 ? (
+                              <span className="font-semibold text-purple-700">
+                                {lead.decisionMakers.length} Found
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">None</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right space-x-1.5 whitespace-nowrap">
+                            {lead.isMobile && lead.whatsappUrl && (
+                              <a
+                                href={lead.whatsappUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2 py-1 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition"
+                              >
+                                WhatsApp
+                              </a>
+                            )}
+                            <button
+                              onClick={() => setSelectedLeadForModal(lead)}
+                              className="px-2 py-1 text-[11px] font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition"
+                            >
+                              Details
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1164,45 +1312,78 @@ export const WhatsAppFinder: React.FC = () => {
             <div className="p-4 divide-y divide-gray-100">
               {displayedLeads
                 .filter((l) => l.isMobile)
-                .map((lead) => (
-                  <div key={lead.id} className="py-3.5 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
+                .map((lead) => {
+                  const mapsUrl =
+                    lead.googleProfileUrl ||
+                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      `${lead.businessName} ${lead.address || lead.locality || lead.city}`
+                    )}`;
+
+                  return (
+                    <div
+                      key={lead.id}
+                      className="py-3.5 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4
+                            onClick={() => setSelectedLeadForModal(lead)}
+                            className="text-sm font-bold text-gray-900 cursor-pointer hover:text-purple-700"
+                          >
+                            {lead.businessName}
+                          </h4>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            WhatsApp Ready
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap items-center gap-2">
+                          <span>{lead.locality || lead.city}</span>
+                          <span>•</span>
+                          <span className="font-semibold text-gray-700">{lead.phoneInternational || lead.phoneRaw}</span>
+                          <span>•</span>
+                          <a
+                            href={mapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline inline-flex items-center gap-0.5 font-medium"
+                          >
+                            <MapPin className="w-3 h-3 text-red-500" />
+                            <span>Google Maps</span>
+                          </a>
+                        </div>
+                      </div>
+
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-gray-900">{lead.businessName}</h4>
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          WhatsApp Ready
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
-                        <span>{lead.locality || lead.city}</span>
-                        <span>•</span>
-                        <span className="font-semibold text-gray-700">{lead.phoneInternational || lead.phoneRaw}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleCopy(lead.phoneInternational || lead.phoneRaw, lead.id)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
-                      >
-                        {copiedId === lead.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>{copiedId === lead.id ? 'Copied' : 'Copy'}</span>
-                      </button>
-
-                      {lead.whatsappUrl && (
-                        <a
-                          href={lead.whatsappUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition shadow-xs"
+                        <button
+                          onClick={() => handleCopy(lead.phoneInternational || lead.phoneRaw, lead.id)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
                         >
-                          <MessageSquare className="w-3.5 h-3.5" />
-                          <span>Chat on WhatsApp</span>
-                        </a>
-                      )}
+                          {copiedId === lead.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedId === lead.id ? 'Copied' : 'Copy'}</span>
+                        </button>
+
+                        {lead.whatsappUrl && (
+                          <a
+                            href={lead.whatsappUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition shadow-xs"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>Chat on WhatsApp</span>
+                          </a>
+                        )}
+
+                        <button
+                          onClick={() => setSelectedLeadForModal(lead)}
+                          className="px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
+                        >
+                          Details
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           )}
 
@@ -1256,6 +1437,14 @@ export const WhatsAppFinder: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* FULL COMPANY, GOOGLE MAPS & LEADERSHIP MODAL */}
+      {selectedLeadForModal && (
+        <CompanyDetailModal
+          lead={selectedLeadForModal}
+          onClose={() => setSelectedLeadForModal(null)}
+        />
+      )}
 
       {/* History Modal */}
       {showHistoryModal && (
