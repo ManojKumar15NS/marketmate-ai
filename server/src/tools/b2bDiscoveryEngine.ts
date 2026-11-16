@@ -444,7 +444,7 @@ export class B2BDiscoveryEngine {
         .join('\n');
 
       const dmPrompt = `You are a B2B Executive Intelligence Specialist.
-Find the authorized leaders, founders, directors, hospital administrators, medical directors, and managers for these specific establishments in ${batch[0]?.city}:
+Find the authorized leaders, founders, directors, executives (CEOs, MDs, Owners, Partners, Department Heads) and managers for these specific establishments in ${batch[0]?.city} in the "${targetCategory || 'commercial'}" sector:
 
 ${companyQueryList}
 
@@ -453,7 +453,7 @@ Return STRICTLY a JSON array of decision-makers in this format without Markdown 
 [
   {
     "companyName": "Exact Company Name from list",
-    "name": "Full Name of Executive / Doctor / Administrator",
+    "name": "Full Name of Executive / Leader / Manager",
     "designation": "Exact Current Job Title / Role",
     "linkedinUrl": "Public LinkedIn profile URL or null",
     "email": "Public professional business email or null",
@@ -593,8 +593,8 @@ Rules:
     const sourcesQueried = [
       'Google Search Grounding (Gemini 2.5 Flash)',
       'Google Maps & Google Business Profiles',
-      'Practo & Justdial Healthcare Registry',
-      'Sulekha & IndiaMART B2B Directories',
+      'Commercial B2B Directories & Registries',
+      'Sulekha, IndiaMART & Justdial Directories',
       'LinkedIn Public Executive Profiles',
       'Official Company Domains'
     ];
@@ -617,7 +617,7 @@ Rules:
       const zonePct = Math.round(15 + (zIdx / activeZones.length) * 35);
       onProgress?.(zonePct, `Stage 3/10: Scanning zone [${zIdx + 1}/${activeZones.length}]: ${zone} (${rawEstablishments.length} found)...`);
 
-      const zonePrompt = `Search Google Maps, Google My Business Profiles, Practo, Justdial, Sulekha, and official listings for real commercial businesses matching:
+      const zonePrompt = `Search Google Maps, Google My Business Profiles, verified local directories, and official listings for real commercial businesses matching:
 Industry / Keywords: "${keywords}" ${industry ? `(${industry})` : ''}
 Specific Zone / Locality: "${zone}", ${city}
 Country: "${params.country || (countryCode === '+91' ? 'India' : 'International')}"
@@ -751,12 +751,10 @@ Format:
 
       seenBranchKeys.add(branchKey);
 
-      // Branch classification
-      const isKnownChain = Boolean(
-        raw.brandName ||
-        ['narayana', 'agarwal', 'netradhama', 'vasan', 'apollo', 'fortis', 'manipal', 'aster'].some(k => cleanName.includes(k))
-      );
-      const parentBrand = raw.brandName || (isKnownChain ? raw.businessName.split('-')[0].split('|')[0].trim() : raw.businessName);
+      // Branch classification - generic across all commercial categories
+      const hasChainDelimiter = /[-|–(]/i.test(raw.businessName);
+      const isKnownChain = Boolean(raw.brandName || hasChainDelimiter);
+      const parentBrand = raw.brandName || (hasChainDelimiter ? raw.businessName.split(/[-|–(]/)[0].trim() : raw.businessName);
       const branchName = raw.locality || raw.city || 'Main Branch';
 
       const branchInfo: BranchInfo = {
@@ -818,7 +816,7 @@ Format:
     // Stage 5 & 6: Discover Authorized Decision-Makers
     let allDecisionMakers: B2BDecisionMaker[] = [];
     if (includeDecisionMakers && uniqueCompanies.length > 0) {
-      onProgress?.(70, `Stage 6/10: Identifying authorized decision-makers (CEOs, Founders, Directors, Hospital Administrators)...`);
+      onProgress?.(70, `Stage 6/10: Identifying authorized decision-makers (CEOs, Founders, Directors, Executives, Managers)...`);
       const dmTargetList = uniqueCompanies.map(c => ({
         businessName: c.businessName,
         city: c.city,

@@ -48,11 +48,14 @@ export function initBackgroundWorkers(): void {
   // 2. B2B Prospector Agent Worker
   const prospector = new ProspectingEngine();
   jobService.registerAgentHandler('prospector', async (input: any, updateProgress: JobProgressCallback, signal: AbortSignal) => {
-    if (!input || typeof input.url !== 'string' || !/^https?:\/\//i.test(input.url.trim())) {
-      throw new Error('B2B Prospector requires a valid company website URL (e.g., https://example.com).');
+    if (!input || typeof input.url !== 'string' || !input.url.trim()) {
+      throw new Error('B2B Prospector requires a company website URL or domain (e.g., example.com or https://example.com).');
     }
 
-    const url = input.url.trim();
+    let url = input.url.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      url = `https://${url}`;
+    }
 
     updateProgress(5, `Stage 1/6: Analyzing company profile & target market for ${url}...`);
     const session = await prospector.createSession(url, input.location);

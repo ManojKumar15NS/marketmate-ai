@@ -113,6 +113,30 @@ export interface UploadedDocument {
   uploadedAt?: string;
 }
 
+export interface DocumentKpi {
+  label: string;
+  value: string;
+  trend?: string;
+  description?: string;
+}
+
+export interface DocumentChartItem {
+  name: string;
+  value: number;
+}
+
+export interface DocumentDashboardData {
+  documentId: string;
+  filename: string;
+  docType: string;
+  summary: string;
+  kpis: DocumentKpi[];
+  chartData: DocumentChartItem[];
+  chartTitle: string;
+  keyInsights: string[];
+  actionableRecommendations: string[];
+}
+
 export interface ResearchResult {
   topic: string;
   summary: string;

@@ -100,10 +100,10 @@ export const WORLD_COUNTRIES: CountryOption[] = [
 ];
 
 export const WhatsAppFinder: React.FC = () => {
-  // Simplified Search Inputs
-  const [keywords, setKeywords] = useState('Eye Hospitals');
+  // Simplified Search Inputs (clean start, customizable for any business & location)
+  const [keywords, setKeywords] = useState('');
   const [selectedCountry, setSelectedCountry] = useState<CountryOption>(WORLD_COUNTRIES[0]);
-  const [city, setCity] = useState('Bangalore');
+  const [city, setCity] = useState('');
   const [includeDecisionMakers, setIncludeDecisionMakers] = useState(true);
 
   // Search execution & active run state
@@ -421,7 +421,7 @@ export const WhatsAppFinder: React.FC = () => {
                   type="text"
                   value={keywords}
                   onChange={(e) => setKeywords(e.target.value)}
-                  placeholder="e.g. Eye Hospitals, Software Companies, Manufacturing"
+                  placeholder="e.g. Software Companies, Manufacturing, Real Estate, Solar Energy, Eye Hospitals"
                   disabled={isDiscovering}
                   className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:border-transparent transition"
                 />

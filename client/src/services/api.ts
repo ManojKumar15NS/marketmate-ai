@@ -11,6 +11,7 @@ import {
   SystemSettings,
   Task,
   UploadedDocument,
+  DocumentDashboardData,
   Lead,
   LeadStats,
   ProspectingCriteria,
@@ -401,6 +402,10 @@ export const api = {
 
   async getDocuments(): Promise<UploadedDocument[]> {
     return safeRequest(`${API_BASE}/documents`);
+  },
+
+  async getDocumentDashboard(id: string): Promise<DocumentDashboardData> {
+    return safeRequest(`${API_BASE}/documents/${id}/dashboard`);
   },
 
   async queryDocument(id: string, query: string): Promise<{ documentId: string; filename: string; query: string; answer: string }> {

@@ -153,6 +153,28 @@ export class CompanyResearcher {
       } catch {
         // ignore
       }
+
+      // Grounded Google Search fallback if DuckDuckGo returned insufficient text
+      if (supplementalContext.length < 100) {
+        try {
+          const grounded = await geminiService.searchWithGrounding(`official company overview "${domain}" products services leadership location about us`);
+          if (grounded && grounded.summary) {
+            supplementalContext += `\nGROUNDED SEARCH INTELLIGENCE:\n${grounded.summary}`;
+            for (const s of grounded.sources) {
+              evidenceList.push({
+                title: s.title,
+                url: s.url,
+                sourceType: 'live_web',
+                retrievedAt: new Date().toISOString(),
+                extractedSnippet: s.snippet || `Verified profile for ${domain}`,
+                confidence: 'high'
+              });
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
     }
 
     // Step 4: Use Gemini to structure complete, rich CompanyProfile
@@ -164,11 +186,10 @@ ${aggregatedContent.slice(0, 7000)}
 
 ${supplementalContext ? `SUPPLEMENTAL SEARCH DATA:\n${supplementalContext}` : ''}
 
-Extract an authoritative, highly accurate B2B Company Profile based strictly on evidence from this website.
-DO NOT use placeholder data, assumptions, or template defaults from other companies.
-If the company is a software / digital marketing agency (like TekAxis), describe digital marketing, web development, SEO, and tech services.
-If the company is an electric vehicle maker (like Boson Motors), describe commercial electric utility vehicles.
-If the company is located in Mysore, India or Fremont, California, report its real location accurately based on the text. If location is not stated, report "Not Disclosed".
+Extract an authoritative, highly accurate B2B Company Profile based strictly on factual evidence from this company and website.
+DO NOT use placeholder data, assumptions, or template defaults.
+Accurately identify and describe their real commercial products, software, or services, the industries they sell to, their key business differentiators, and their physical headquarters/location.
+If location is not stated or verifiable, report "Not Disclosed".
 
 Return strictly raw valid JSON matching this exact structure:
 {

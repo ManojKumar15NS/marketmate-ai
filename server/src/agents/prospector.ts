@@ -141,12 +141,27 @@ export class ProspectingEngine {
     const query2 = `companies offering alternatives to ${profile.productsAndServices.slice(0, 2).join(' ')} ${profile.industry}`;
 
     this.addSessionLog(session, 2, 'search', `Searching live market data with query: "${query1}"`);
-    const liveHits = await searchLiveWeb(query1, 6);
+    const liveHits = await searchLiveWeb(query1, 6).catch(() => []);
     this.addSessionLog(session, 2, 'search', `Searching live market data with query: "${query2}"`);
-    const altHits = await searchLiveWeb(query2, 4);
+    const altHits = await searchLiveWeb(query2, 4).catch(() => []);
 
     const allHits = [...liveHits, ...altHits];
-    const sourcesSummary = allHits.map((h, i) => `[Source ${i + 1}] Title: ${h.title}\nURL: ${h.url}\nSnippet: ${h.snippet}`).join('\n\n');
+    let sourcesSummary = allHits.map((h, i) => `[Source ${i + 1}] Title: ${h.title}\nURL: ${h.url}\nSnippet: ${h.snippet}`).join('\n\n');
+
+    // Grounding fallback to guarantee deep, verifiable competitor intelligence
+    if (allHits.length < 3) {
+      try {
+        const groundedComp = await geminiService.searchWithGrounding(`top direct commercial competitors and alternatives to ${profile.name} ${profile.domain} in ${profile.industry} official websites`);
+        if (groundedComp && groundedComp.summary) {
+          sourcesSummary += `\n\n[Grounded Competitor Intelligence]\n${groundedComp.summary}`;
+          if (groundedComp.sources) {
+            sourcesSummary += '\n' + groundedComp.sources.map(s => `${s.title}: ${s.url}`).join('\n');
+          }
+        }
+      } catch (gErr: any) {
+        console.warn('[Prospector] Competitor grounding notice:', gErr.message);
+      }
+    }
 
     const prompt = `You are a Senior Competitive Intelligence Analyst.
 Target Company:
@@ -160,7 +175,7 @@ Target Company:
 Live Market Research Sources:
 ${sourcesSummary}
 
-Task: Identify actual real direct, indirect, and adjacent competitors of ${profile.name}.
+Task: Identify 6 to 10 actual real direct, indirect, and adjacent competitors of ${profile.name}.
 RULES:
 - ONLY include real commercial companies with actual verifiable websites.
 - Classify category as: "direct", "indirect", or "adjacent".
@@ -389,7 +404,7 @@ Return strictly raw valid JSON array:
 
     const activeCampaign = (options?.campaignId && campaigns.find(c => c.id === options.campaignId)) || campaigns[0];
     const targetIndustry = activeCampaign?.targetIndustry || profile.targetIndustries[0] || 'Commercial Enterprises';
-    const limit = options?.limit || 6;
+    const limit = options?.limit || 15;
 
     session.currentStep = 4;
     session.status = 'running';
@@ -503,16 +518,7 @@ Return strictly raw valid JSON array:
       this.addSessionLog(session, 5, 'scrape', `Querying LinkedIn People Finder (Agent 2) for ${lead.companyName} (${lead.website})`, lead.website);
 
       const targetRoles = profile.targetBuyerRoles || ['Operations Director', 'Owner', 'Managing Director', 'CEO', 'Head of Sales'];
-      
-      // Re-use LinkedIn People Finder (Agent 2) for strict verified profile matching
-      let dmName = 'Leadership Team';
-      let dmTitle = targetRoles[0] || 'Leadership';
-      let dmDept = 'Management';
-      let dmLinkedinUrl: string | null = null;
-      let dmLinkedinStatus: 'found' | 'not_found' = 'not_found';
-      let dmVerificationStatus: 'verified' | 'unverified' | 'invalid' = 'unverified';
-      let dmEvidenceUrl = lead.website;
-      let dmEvidenceText = '';
+      const leadDMs: DecisionMaker[] = [];
 
       try {
         const peopleRun = await emailFinderService.discoverPeople({
@@ -521,79 +527,67 @@ Return strictly raw valid JSON array:
           companyName: lead.companyName,
           keywords: targetRoles,
           targetIndustry: lead.industry,
-          limit: 3
+          limit: 4
         });
 
-        const topContact = peopleRun.contacts.find(c => c.verificationStatus === 'Verified') || peopleRun.contacts[0];
-        if (topContact) {
-          dmName = topContact.name;
-          dmTitle = topContact.title;
-          dmDept = topContact.department || 'Management';
-          dmLinkedinUrl = topContact.linkedinUrl || null;
-          dmLinkedinStatus = topContact.linkedinUrl ? 'found' : 'not_found';
-          dmVerificationStatus = topContact.verificationStatus === 'Verified' ? 'verified' : 'unverified';
-          dmEvidenceUrl = topContact.sourceUrl || topContact.linkedinUrl || lead.website;
-          dmEvidenceText = topContact.companyEvidence || topContact.linkedinEvidence || `${topContact.title} at ${lead.companyName}`;
+        const validContacts = peopleRun.contacts && peopleRun.contacts.length > 0
+          ? peopleRun.contacts.slice(0, 3)
+          : [];
+
+        for (const contact of validContacts) {
+          const emailRes = await emailDiscoveryService.discoverEmail(contact.name, contact.title, lead.companyName, lead.website);
+          leadDMs.push({
+            name: contact.name,
+            title: contact.title,
+            department: contact.department || emailFinderService.inferDepartment(contact.title),
+            linkedinUrl: contact.linkedinUrl || null,
+            linkedinStatus: contact.linkedinUrl ? 'found' : 'not_found',
+            email: contact.email || emailRes.email || null,
+            emailConfidence: emailRes.confidence,
+            verificationStatus: emailRes.emailStatus === 'Verified' ? 'verified' : (contact.email || emailRes.email ? 'unverified' : 'invalid'),
+            emailStatus: emailRes.emailStatus,
+            emailSource: emailRes.emailSource || 'Official Records',
+            providerBadges: emailRes.providerBadges,
+            verificationDetails: contact.verificationDetails || emailRes.verificationDetails,
+            contactEvidence: [
+              {
+                title: `${contact.name} (${contact.title}) at ${lead.companyName}`,
+                url: contact.sourceUrl || contact.linkedinUrl || lead.website,
+                sourceType: 'leadership_page',
+                retrievedAt: new Date().toISOString(),
+                extractedSnippet: contact.companyEvidence || contact.linkedinEvidence || `${contact.title} at ${lead.companyName}`,
+                confidence: contact.verificationStatus === 'Verified' ? 'high' : 'medium'
+              },
+              ...emailRes.evidence
+            ],
+            researchedAt: new Date().toISOString()
+          });
         }
       } catch (err: any) {
         // Fallback to direct search
-        const dm = await this.discoverRealDecisionMaker(lead.companyName, lead.website, targetRoles, lead.industry);
-        dmName = dm.name;
-        dmTitle = dm.title;
-        dmDept = dm.department || 'Operations';
-        dmLinkedinUrl = dm.linkedinUrl;
-        dmLinkedinStatus = dm.linkedinStatus;
-        dmEvidenceUrl = dm.linkedinUrl || lead.website;
-        dmEvidenceText = dm.evidence[0]?.extractedSnippet || `Leadership at ${lead.companyName}`;
+        try {
+          const dm = await this.discoverRealDecisionMaker(lead.companyName, lead.website, targetRoles, lead.industry);
+          const emailRes = await emailDiscoveryService.discoverEmail(dm.name, dm.title, lead.companyName, lead.website);
+          leadDMs.push({
+            name: dm.name,
+            title: dm.title,
+            department: dm.department || 'Operations',
+            linkedinUrl: dm.linkedinUrl,
+            linkedinStatus: dm.linkedinStatus,
+            email: emailRes.email || null,
+            emailConfidence: emailRes.confidence,
+            verificationStatus: emailRes.emailStatus === 'Verified' ? 'verified' : (emailRes.email ? 'unverified' : 'invalid'),
+            emailStatus: emailRes.emailStatus,
+            emailSource: emailRes.emailSource || 'Not found',
+            providerBadges: emailRes.providerBadges,
+            verificationDetails: emailRes.verificationDetails,
+            contactEvidence: [...dm.evidence, ...emailRes.evidence],
+            researchedAt: new Date().toISOString()
+          });
+        } catch {}
       }
 
-      const dm = {
-        name: dmName,
-        title: dmTitle,
-        department: dmDept,
-        linkedinUrl: dmLinkedinUrl,
-        linkedinStatus: dmLinkedinStatus,
-        evidence: [
-          {
-            title: `${dmName} (${dmTitle}) at ${lead.companyName}`,
-            url: dmEvidenceUrl,
-            sourceType: 'leadership_page' as const,
-            retrievedAt: new Date().toISOString(),
-            extractedSnippet: dmEvidenceText,
-            confidence: (dmVerificationStatus === 'verified' ? 'high' : 'medium') as any
-          }
-        ]
-      };
-
-      this.addSessionLog(
-        session,
-        5,
-        'info',
-        `Contact identified for ${lead.companyName}: ${dm.name} (${dm.title}) | LinkedIn: ${dm.linkedinStatus === 'found' ? dm.linkedinUrl : 'Not Found'}`
-      );
-
-      // Verify email via Hunter.io API + official website scraper
-      this.addSessionLog(session, 5, 'verify', `Verifying professional email for ${dm.name} at ${lead.website}`);
-      const emailRes = await emailDiscoveryService.discoverEmail(dm.name, dm.title, lead.companyName, lead.website);
-
-      const decisionMaker: DecisionMaker = {
-        name: dm.name,
-        title: dm.title,
-        department: dm.department || 'Operations',
-        linkedinUrl: dm.linkedinUrl,
-        linkedinStatus: dm.linkedinStatus,
-        email: emailRes.email || null,
-        emailConfidence: emailRes.confidence,
-        verificationStatus: emailRes.emailStatus === 'Verified' ? 'verified' : (emailRes.email ? 'unverified' : 'invalid'),
-        emailStatus: emailRes.emailStatus,
-        emailSource: emailRes.emailSource || 'Not found',
-        providerBadges: emailRes.providerBadges,
-        verificationDetails: emailRes.verificationDetails,
-        contactEvidence: [...dm.evidence, ...emailRes.evidence],
-        researchedAt: new Date().toISOString()
-      };
-
-      lead.decisionMakers = [decisionMaker];
+      lead.decisionMakers = leadDMs;
       lead.updatedAt = new Date().toISOString();
       enrichedLeads.push(lead);
 
@@ -601,7 +595,7 @@ Return strictly raw valid JSON array:
         session,
         5,
         'success',
-        `Email status for ${dm.name}: ${decisionMaker.emailStatus} (${decisionMaker.email || 'No email found'})`
+        `Identified ${leadDMs.length} decision-makers for ${lead.companyName}: ${leadDMs.map(d => `${d.name} (${d.title})`).join(', ') || 'General Office'}`
       );
     }
 

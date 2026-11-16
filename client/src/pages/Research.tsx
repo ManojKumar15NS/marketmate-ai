@@ -140,13 +140,13 @@ export const Research: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="sm:col-span-2">
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Company or Market Research Topic
+                Domain, Sector or Research Topic Keywords
               </label>
               <input
                 type="text"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                placeholder="e.g. Eye Hospital Sector, EV Charging Infrastructure, Fintech"
+                placeholder="e.g. AI SaaS Startups, Solar Energy, Manufacturing, Eye Hospitals"
                 required
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-violet-500"
               />
@@ -154,32 +154,40 @@ export const Research: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Industry / Sector (Optional)
+                Industry / Category (Optional)
               </label>
               <input
                 type="text"
                 value={industry}
                 onChange={(e) => setIndustry(e.target.value)}
-                placeholder="e.g. Healthcare, Automotive"
+                placeholder="e.g. Technology, Clean Energy, Healthcare"
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-violet-500"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Target Region
+                Target Area / Location
               </label>
-              <select
+              <input
+                type="text"
+                list="region-suggestions"
                 value={targetRegion}
                 onChange={(e) => setTargetRegion(e.target.value)}
+                placeholder="e.g. Bangalore, India, United States, London"
                 className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-hidden focus:border-violet-500"
-              >
-                <option value="India">India</option>
-                <option value="United States">United States</option>
-                <option value="Europe / UK">Europe / UK</option>
-                <option value="Southeast Asia">Southeast Asia</option>
-                <option value="Global">Global</option>
-              </select>
+              />
+              <datalist id="region-suggestions">
+                <option value="India" />
+                <option value="Bangalore" />
+                <option value="Mumbai" />
+                <option value="United States" />
+                <option value="California" />
+                <option value="Europe / UK" />
+                <option value="London" />
+                <option value="Southeast Asia" />
+                <option value="Global" />
+              </datalist>
             </div>
           </div>
 

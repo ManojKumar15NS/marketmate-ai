@@ -13,7 +13,7 @@ const researchRequestSchema = z.object({
   targetRegion: z.string().optional()
 });
 
-// POST /api/research - Conduct live web research with multi-angle grounding
+// POST /api/research - Conduct live web research with multi-angle grounding on any domain/area
 router.post('/', aiGenerationLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { topic, industry, targetRegion } = researchRequestSchema.parse(req.body);
@@ -25,18 +25,20 @@ router.post('/', aiGenerationLimiter, async (req: Request, res: Response, next: 
 
     const cleanTopic = topic.trim();
     const cleanIndustry = industry && industry.trim() ? industry.trim() : '';
-    const regionTerm = targetRegion && targetRegion !== 'Global' ? targetRegion : '';
+    const regionTerm = targetRegion && targetRegion !== 'Global' ? targetRegion.trim() : '';
 
-    // 1. Execute Multi-Angle Targeted Web Searches
-    const query1 = `"${cleanTopic}" ${cleanIndustry} ${regionTerm} market size revenue CAGR number of hospitals clinics statistics`.trim();
-    const query2 = `top leading "${cleanTopic}" chains companies brands in ${regionTerm} market share centers locations`.trim();
+    // 1. Execute Multi-Angle Targeted Web Searches for the specific domain and target area
+    const query1 = `"${cleanTopic}" ${cleanIndustry} ${regionTerm} market size valuation growth trends forecast revenue CAGR statistics`.trim();
+    const query2 = `top leading companies competitors brands in "${cleanTopic}" ${cleanIndustry} ${regionTerm} market share`.trim();
+    const query3 = `"${cleanTopic}" in ${regionTerm} industry report key players customer profile`.trim();
 
-    const [hits1, hits2] = await Promise.all([
+    const [hits1, hits2, hits3] = await Promise.all([
       searchLiveWeb(query1, 6).catch(() => []),
-      searchLiveWeb(query2, 6).catch(() => [])
+      searchLiveWeb(query2, 6).catch(() => []),
+      searchLiveWeb(query3, 4).catch(() => [])
     ]);
 
-    const allHits = [...hits1, ...hits2];
+    const allHits = [...hits1, ...hits2, ...hits3];
 
     // Deduplicate by URL
     const seenUrls = new Set<string>();
@@ -49,89 +51,83 @@ router.post('/', aiGenerationLimiter, async (req: Request, res: Response, next: 
     let contextSnippet = '';
     const sources: Array<{ title: string; url: string; snippet?: string }> = [];
 
-    if (uniqueHits.length > 0) {
+    if (uniqueHits.length >= 2) {
       uniqueHits.forEach((h, i) => {
         sources.push({ title: h.title, url: h.url, snippet: h.snippet });
         contextSnippet += `[Source ${i + 1}] Title: ${h.title}\nURL: ${h.url}\nSummary: ${h.snippet}\n\n`;
       });
     } else {
-      // Fallback to grounded search
-      const fallbackQuery = `"${cleanTopic}" ${cleanIndustry} ${regionTerm} market size industry overview competitors`.trim();
+      // Direct live search grounding with Gemini fallback
+      const fallbackQuery = `comprehensive market research "${cleanTopic}" ${cleanIndustry} ${regionTerm} market size leading competitors companies ICP trends statistics`.trim();
       const fallbackData = await geminiService.searchWithGrounding(fallbackQuery);
       contextSnippet = fallbackData.summary;
-      sources.push(...fallbackData.sources);
+      if (fallbackData.sources && fallbackData.sources.length > 0) {
+        sources.push(...fallbackData.sources);
+      }
     }
 
-    // 2. Synthesize structured, in-depth market research report
+    // 2. Synthesize structured, domain-accurate market intelligence report
     const synthesisPrompt = `You are an elite Senior Market Research Analyst & Strategy Director.
-Conduct an in-depth, rigorous, data-driven market research report on: "${cleanTopic}" in ${targetRegion || 'Global'}${cleanIndustry ? ` (Industry Sector: ${cleanIndustry})` : ''}.
+Conduct an in-depth, rigorous, highly data-driven market research report on: "${cleanTopic}"${regionTerm ? ` in ${regionTerm}` : ''}${cleanIndustry ? ` (Domain/Sector: ${cleanIndustry})` : ''}.
 
-STRICT ACCURACY RULES:
-1. FOCUS DIRECTLY ON "${cleanTopic}": Analyze the actual businesses, institutions, facilities, and patients/customers of this specific sector. DO NOT drift into generic auxiliary topics (such as cloud computing, IT outsourcing, or DevOps) unless the topic itself explicitly requested IT infrastructure.
-2. EXTRACT CONCRETE DATA: Report actual market figures, market sizes (in USD and local currency e.g. INR/EUR), CAGR percentages, surgical/patient volumes, facility counts, and percentage shares.
-3. PROFILE REAL INDUSTRY LEADERS: Name the actual leading organizations, hospital chains, or brands operating in this sector (with number of centers, geographic footprint, and business models).
+STRICT ACCURACY & RELEVANCE RULES:
+1. STRICT DOMAIN FOCUS: Analyze specifically the businesses, products, services, market dynamics, and customers of "${cleanTopic}". NEVER introduce unrelated industry domains (such as healthcare, cloud computing, or DevOps) unless the user's topic explicitly requested them.
+2. REGIONAL FOCUS: If a target area or location was provided ("${regionTerm || 'Global'}"), tailor the competitive landscape, market size, regulatory context, and consumer behavior specifically to that geography.
+3. CONCRETE DATA & MARKET METRICS: Report actual market figures, market valuations (in USD and local currency where relevant), CAGR projections, estimated unit volumes / customer counts, and percentage shares.
+4. REAL COMMERCIAL PLAYERS: Name actual leading organizations, commercial providers, and brands active in this specific domain and geography.
 
-Provide your report in structured, detailed Markdown:
+Provide your report in clean, authoritative Markdown format:
 
-# Comprehensive Market Research & Competitive Intelligence Report: ${cleanTopic} (${targetRegion || 'Global'})
+# Comprehensive Market Research & Intelligence Brief: ${cleanTopic} ${regionTerm ? `(${regionTerm})` : ''}
 
-## 1. Executive Summary & Market Snapshot
-- High-level overview of the ${cleanTopic} sector in ${targetRegion || 'Global'}.
-- Market maturity stage (emerging, high-growth, consolidating, mature).
-- Industry structure & fragmentation (e.g. split between standalone unorganized providers vs. organized chains).
+## 1. Executive Summary & Domain Overview
+- Overview of the "${cleanTopic}" domain and business ecosystem in ${regionTerm || 'the target market'}.
+- Industry lifecycle stage (emerging, high-growth, consolidating, mature).
+- Industry structure (distribution between organized market leaders vs. regional/independent providers).
 
-## 2. Market Size, Valuation & Financial Projections
-- Current Market Size / Valuation (provide both USD and local currency figures where available).
-- Forecasted Growth & CAGR (projected timeline, e.g., 2024–2030).
-- Key revenue segments (e.g., surgical procedures, outpatient diagnostics, optical/pharmacy sales, elective vs. non-elective care).
+## 2. Market Size, Valuation & Financial Growth Projections
+- Current Market Size / Valuation (figures in USD and local currency where applicable).
+- Forecasted Growth Rate & CAGR with timeline projections.
+- Key revenue segments and value-driver product/service categories.
 
-## 3. Industry Scale, Volume & Facility Breakdown
-- Estimated total number of hospitals, clinics, or dedicated specialty centers in ${targetRegion || 'Global'}.
-- Chain penetration rate: % share of organized chains vs. standalone unorganized practices.
-- Operational & procedure volume metrics (e.g. annual surgeries, footfalls, bed occupancy, doctor-to-patient ratios).
+## 3. Competitive Landscape & Leading Market Players
+- Detailed breakdown of 5 to 7 key companies, brands, or service providers operating in this space:
+  * Company Name & Overview
+  * Core Product/Service Offerings & Positioning
+  * Geographic Footprint & Estimated Market Presence
+  * Competitive Strengths & Differentiators
 
-## 4. Key Demand Drivers & Market Tailwinds
-- Core growth catalysts (aging demographics, rising prevalence of chronic conditions, increased digital screen time, lifestyle shifts).
-- Economic tailwinds (rising disposable income, private health insurance penetration, corporate wellness).
-- Government schemes & regulatory policies supporting sector expansion.
+## 4. Target Audience & Ideal Customer Profiles (ICPs)
+- Segment 1: Primary / High-Volume Customer Segment (demographics/firmographics, core needs, purchasing triggers).
+- Segment 2: Premium / Enterprise / High-Margin Segment (specialized requirements, budget authority, willingness to pay).
+- Segment 3: Underserved or Emerging Growth Niche.
 
-## 5. Competitive Landscape & Top Market Players
-- Detailed breakdown of the top 5–7 leading chains / companies in this sector.
-- For each player:
-  * Name & Overview
-  * Estimated Centers / Network Size & Footprint
-  * Core Specialties & Service Positioning
-  * Business Model (e.g., Corporate/Private Equity backed vs. Charitable Trust/Non-profit)
-  * Estimated Market Share or Competitive Advantage
+## 5. Market Demand Drivers, Tailwinds & Trends
+- Primary growth drivers fueling demand for ${cleanTopic}.
+- Technological advancements, behavioral shifts, or economic tailwinds accelerating adoption.
+- Regulatory, government, or macroeconomic factors impacting the domain.
 
-## 6. Customer & Patient Segmentation (Ideal Customer Profiles)
-- Profile 1: Core / High-Volume Need Segment (demographics, needs, purchasing behavior, payment source).
-- Profile 2: High-Margin / Elective Treatment Segment (e.g. advanced refractive, premium technology, aesthetic).
-- Profile 3: Under-served / Tier-2 & Tier-3 Segment (affordability constraints, access barriers).
-- Medical Tourism / Cross-Border Patient Potential (if applicable to ${targetRegion || 'Global'}).
+## 6. Industry Challenges, Risks & Market Gaps
+- Core operational, supply-chain, regulatory, or economic obstacles faced by businesses in this sector.
+- Common customer complaints, quality gaps, or underserved market pain points.
+- Pricing pressure, margin considerations, and competitive friction.
 
-## 7. Market Challenges, Gaps & Unmet Needs
-- Key operational and structural pain points (e.g., doctor/specialist shortages, high capex for equipment, tier-2/3 penetration barriers).
-- Quality and standardization variance across providers.
-- Pricing pressure vs. rising operational costs.
+## 7. Strategic Growth Opportunities & Actionable Playbook
+- High-impact go-to-market strategies and customer acquisition channels.
+- Product/service expansion opportunities and competitive differentiation tactics.
+- Actionable steps for capturing market share in ${regionTerm || 'this target market'}.
 
-## 8. Strategic Marketing & Growth Playbook
-- High-impact patient acquisition channels (local hyper-targeted SEO, community outreach camps, digital booking engines).
-- Doctor & Clinician Referral Network strategies (building trust with primary care physicians).
-- Expansion Playbook: Hub-and-Spoke model into Tier-2/3 cities.
-- High-Margin Service Upselling (patient counseling, premium lens/technology adoption).
-
-VERIFIED SEARCH EVIDENCE:
+VERIFIED RESEARCH EVIDENCE:
 ${contextSnippet}
 
-Ground your insights in the verified web evidence above and industry facts. Write authoritatively and thoroughly without placeholders. Cite sources where appropriate.`;
+Ground your analysis strictly in verified facts and evidence. Write clearly, authoritatively, and without placeholders.`;
 
     const report = await geminiService.generateText(synthesisPrompt);
 
     // Save as persistent task
     const task = await store.saveTask({
       id: `res_${Date.now()}`,
-      instruction: `Market Research: ${cleanTopic}`,
+      instruction: `Market Research: ${cleanTopic}${regionTerm ? ` (${regionTerm})` : ''}`,
       category: 'Market & Competitor Research',
       status: 'completed',
       startTime: new Date().toISOString(),
@@ -142,6 +138,8 @@ Ground your insights in the verified web evidence above and industry facts. Writ
     res.json({
       taskId: task.id,
       topic: cleanTopic,
+      region: regionTerm,
+      industry: cleanIndustry,
       report,
       sources
     });

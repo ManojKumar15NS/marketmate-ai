@@ -609,13 +609,13 @@ export const EmailFinder: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Target Location (Optional)
+                Target Location / City (Optional)
               </label>
               <input
                 type="text"
                 value={targetLocation}
                 onChange={e => setTargetLocation(e.target.value)}
-                placeholder="e.g. California, Seattle, London, Global"
+                placeholder="e.g. Bangalore, London, New York, Mumbai, California"
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

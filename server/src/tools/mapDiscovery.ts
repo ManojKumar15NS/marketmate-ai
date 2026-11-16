@@ -114,8 +114,27 @@ export class MapDiscoveryService {
 
     console.log(`[MapDiscovery] Searching live web for commercial businesses: "${searchQuery}"`);
 
-    const liveHits = await searchLiveWeb(searchQuery, limit * 2);
-    if (!liveHits || liveHits.length === 0) {
+    const liveHits = await searchLiveWeb(searchQuery, limit * 2).catch(() => []);
+    let hitsContext = (liveHits || []).map((h, i) => `[Hit ${i + 1}] Title: ${h.title}\nURL: ${h.url}\nSnippet: ${h.snippet}`).join('\n\n');
+
+    // If live search returned few or zero results, activate Gemini Google Search Grounding fallback
+    if (!liveHits || liveHits.length < 3) {
+      try {
+        const groundedFallback = await geminiService.searchWithGrounding(`active commercial businesses companies in "${industry}" in "${locationStr || 'regional market'}" official website address phone`);
+        if (groundedFallback && groundedFallback.summary) {
+          hitsContext += `\n\n[Verified Search Grounding Data]\n${groundedFallback.summary}`;
+          if (groundedFallback.sources) {
+            for (const s of groundedFallback.sources) {
+              hitsContext += `\nSource: ${s.title} (${s.url})`;
+            }
+          }
+        }
+      } catch (gErr: any) {
+        console.warn('[MapDiscovery] Grounding notice:', gErr.message);
+      }
+    }
+
+    if (!hitsContext.trim()) {
       return {
         centerCoordinates: centerCoords,
         places: []
@@ -124,8 +143,7 @@ export class MapDiscoveryService {
 
     const discovered: DiscoveredMapPlace[] = [];
 
-    // Analyze live hits with Gemini to extract real company names, verified official websites, and addresses
-    const hitsContext = liveHits.map((h, i) => `[Hit ${i + 1}] Title: ${h.title}\nURL: ${h.url}\nSnippet: ${h.snippet}`).join('\n\n');
+    // Analyze search evidence with Gemini to extract real company names, verified official websites, and addresses
     const prompt = `You are a precision B2B geographic business research analyst.
 Extract ${limit} REAL, active commercial companies from these verified live search results for "${industry}" in "${locationStr || 'target region'}":
 

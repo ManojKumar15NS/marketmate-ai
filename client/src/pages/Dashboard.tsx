@@ -96,7 +96,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ settings }) => {
     },
     {
       title: 'Report Analyst',
-      desc: 'Document intelligence, CSV calculations & PDF reports',
+      desc: 'Interactive document analytics dashboards & intelligence reports',
       icon: BarChart3,
       path: '/reports',
       tag: 'Data & PDF'
