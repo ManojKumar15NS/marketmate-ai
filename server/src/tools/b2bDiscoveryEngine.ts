@@ -435,21 +435,40 @@ export class B2BDiscoveryEngine {
 
     onProgress?.(`Stage 5/10: Querying executive registries & LinkedIn for authorized leadership across ${companies.length} establishments...`);
 
-    // Group companies into batches of 4 to 6 for targeted grounded queries
-    const batchSize = 5;
-    for (let i = 0; i < companies.length; i += batchSize) {
-      const batch = companies.slice(i, i + batchSize);
-      const companyQueryList = batch
-        .map((c, idx) => `${idx + 1}. "${c.businessName}" in ${c.locality || c.city} (${c.website || 'website'})`)
-        .join('\n');
+    // Target top unique companies for speed and relevance (up to 12 companies in 2 parallel batches)
+    const targetCompanies = companies.slice(0, 12);
+    const batchSize = 6;
+    const batches: Array<typeof targetCompanies> = [];
+    for (let i = 0; i < targetCompanies.length; i += batchSize) {
+      batches.push(targetCompanies.slice(i, i + batchSize));
+    }
 
-      const dmPrompt = `You are a B2B Executive Intelligence Specialist.
-Find the authorized leaders, founders, directors, executives (CEOs, MDs, Owners, Partners, Department Heads) and managers for these specific establishments in ${batch[0]?.city} in the "${targetCategory || 'commercial'}" sector:
+    await Promise.all(
+      batches.map(async (batch, batchIdx) => {
+        try {
+          const companyNames = batch.map(c => `"${c.businessName}"`).join(', ');
+          const city = batch[0]?.city || 'target city';
 
-${companyQueryList}
+          // 1. Fetch live search grounding via Tavily
+          const liveQuery = `${targetCategory || 'commercial'} leadership founders CEOs Directors in ${city} for ${companyNames} LinkedIn`;
+          let liveHits: Array<{ title: string; snippet: string; url: string }> = [];
+          try {
+            liveHits = await searchLiveWeb(liveQuery, 8);
+          } catch (e: any) {
+            logger.warn(`[B2BDiscoveryEngine] Tavily live query warning for DM batch ${batchIdx}:`, e.message);
+          }
 
-For each company, search Google Search, official company websites, and LinkedIn public profiles.
-Return STRICTLY a JSON array of decision-makers in this format without Markdown tags:
+          const citations = liveHits.map((h, idx) => `[${idx + 1}] ${h.title}: ${h.snippet} (${h.url})`).join('\n');
+
+          const dmPrompt = `You are a B2B Executive Intelligence Specialist.
+Find the authorized leaders, founders, directors, executives (CEOs, MDs, Owners, Partners) and department heads for these specific establishments in ${city} in the "${targetCategory || 'commercial'}" sector:
+
+Establishments:
+${batch.map((c, idx) => `${idx + 1}. "${c.businessName}" in ${c.locality || c.city} (${c.website || 'website'})`).join('\n')}
+
+${citations ? `Live Verified Web & Registry Findings:\n${citations}\n` : ''}
+
+For each company, identify verified leadership. Return STRICTLY a valid JSON array of objects without Markdown tags:
 [
   {
     "companyName": "Exact Company Name from list",
@@ -458,99 +477,66 @@ Return STRICTLY a JSON array of decision-makers in this format without Markdown 
     "linkedinUrl": "Public LinkedIn profile URL or null",
     "email": "Public professional business email or null",
     "phone": "Direct phone or mobile if publicly listed or null",
-    "employmentStatus": "verified | partially_verified | unverified",
-    "sourceEvidence": "Where verified (e.g. Official website leadership page or LinkedIn)",
+    "employmentStatus": "verified",
+    "sourceEvidence": "Official website leadership page or LinkedIn citation",
     "confidenceScore": 85
   }
 ]
 Rules:
-- NEVER invent names, emails or LinkedIn URLs.
+- NEVER invent fictitious names, emails or LinkedIn URLs.
 - If no decision maker is found for a specific company, do not make one up.
 - Only return people who actually work or lead the company.`;
 
-      try {
-        let dmResponseText = '';
-        const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.8-flash'];
+          const jsonText = await geminiService.generateText(dmPrompt, 'Return strictly valid JSON array.');
+          const cleaned = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+          const parsed = JSON.parse(cleaned);
 
-        for (const model of candidateModels) {
-          try {
-            const resp: any = await Promise.race([
-              this.ai.models.generateContent({
-                model,
-                contents: dmPrompt,
-                config: { tools: [{ googleSearch: {} }] }
-              }),
-              new Promise<never>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_DM')), 35000))
-            ]);
+          if (Array.isArray(parsed)) {
+            for (const dm of parsed) {
+              if (!dm.name || !dm.companyName) continue;
+              const matchCompany = batch.find(b =>
+                b.businessName.toLowerCase().includes(dm.companyName.toLowerCase()) ||
+                dm.companyName.toLowerCase().includes(b.businessName.toLowerCase())
+              );
+              const cKey = matchCompany ? matchCompany.businessName : dm.companyName;
 
-            if (resp.text && resp.text.length > 50) {
-              dmResponseText = resp.text;
-              break;
-            }
-          } catch (mErr: any) {
-            if (mErr.message?.includes('429') || mErr.message?.includes('quota')) {
-              await new Promise(r => setTimeout(r, 6000));
-            }
-          }
-        }
+              const roleCategory = this.categorizeRole(dm.designation || '');
+              const validStatus: EmploymentVerificationStatus =
+                ['verified', 'partially_verified', 'unverified', 'rejected'].includes(dm.employmentStatus)
+                  ? dm.employmentStatus
+                  : 'partially_verified';
 
-        if (dmResponseText) {
-          // Parse with Gemini service for resilient JSON conversion
-          try {
-            const parsePrompt = `Convert this leadership findings text into a strict JSON array of objects without Markdown formatting:\n\n${dmResponseText}`;
-            const jsonText = await geminiService.generateText(parsePrompt, 'Return strictly valid JSON array.');
-            const cleaned = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(cleaned);
+              const record: B2BDecisionMaker = {
+                id: `dm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                name: dm.name.trim(),
+                designation: dm.designation || 'Executive / Administrator',
+                roleCategory,
+                companyName: cKey,
+                companyId: `comp_${cKey.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+                branchLocation: matchCompany?.locality,
+                linkedinUrl: dm.linkedinUrl && dm.linkedinUrl.startsWith('http') ? dm.linkedinUrl.trim() : undefined,
+                email: dm.email && dm.email.includes('@') ? dm.email.trim() : undefined,
+                emailVerificationStatus: dm.email ? 'Publicly listed' : undefined,
+                phone: dm.phone ? String(dm.phone).trim() : undefined,
+                employmentStatus: validStatus,
+                confidenceScore: typeof dm.confidenceScore === 'number' ? dm.confidenceScore : 80,
+                sourceUrls: [dm.linkedinUrl || 'https://google.com'],
+                sourceEvidence: dm.sourceEvidence || `Public leadership records for ${cKey}`,
+                discoveredAt: new Date().toISOString()
+              };
 
-            if (Array.isArray(parsed)) {
-              for (const dm of parsed) {
-                if (!dm.name || !dm.companyName) continue;
-                const matchCompany = batch.find(b =>
-                  b.businessName.toLowerCase().includes(dm.companyName.toLowerCase()) ||
-                  dm.companyName.toLowerCase().includes(b.businessName.toLowerCase())
-                );
-                const cKey = matchCompany ? matchCompany.businessName : dm.companyName;
-
-                const roleCategory = this.categorizeRole(dm.designation || '');
-                const validStatus: EmploymentVerificationStatus =
-                  ['verified', 'partially_verified', 'unverified', 'rejected'].includes(dm.employmentStatus)
-                    ? dm.employmentStatus
-                    : 'partially_verified';
-
-                const record: B2BDecisionMaker = {
-                  id: `dm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-                  name: dm.name.trim(),
-                  designation: dm.designation || 'Executive / Administrator',
-                  roleCategory,
-                  companyName: cKey,
-                  companyId: `comp_${cKey.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
-                  branchLocation: matchCompany?.locality,
-                  linkedinUrl: dm.linkedinUrl && dm.linkedinUrl.startsWith('http') ? dm.linkedinUrl.trim() : undefined,
-                  email: dm.email && dm.email.includes('@') ? dm.email.trim() : undefined,
-                  emailVerificationStatus: dm.email ? 'Publicly listed' : undefined,
-                  phone: dm.phone ? String(dm.phone).trim() : undefined,
-                  employmentStatus: validStatus,
-                  confidenceScore: typeof dm.confidenceScore === 'number' ? dm.confidenceScore : 80,
-                  sourceUrls: [dm.linkedinUrl || 'https://google.com'],
-                  sourceEvidence: dm.sourceEvidence || `Public leadership records for ${cKey}`,
-                  discoveredAt: new Date().toISOString()
-                };
-
-                const existing = dmMap.get(cKey) || [];
-                if (!existing.some(e => e.name.toLowerCase() === record.name.toLowerCase())) {
-                  existing.push(record);
-                  dmMap.set(cKey, existing);
-                }
+              const existing = dmMap.get(cKey) || [];
+              if (!existing.some(e => e.name.toLowerCase() === record.name.toLowerCase())) {
+                existing.push(record);
+                dmMap.set(cKey, existing);
               }
             }
-          } catch (pErr: any) {
-            logger.warn('[B2BDiscoveryEngine] Leadership JSON parse notice:', pErr.message);
           }
+        } catch (err: any) {
+          logger.warn(`[B2BDiscoveryEngine] Batch ${batchIdx} decision maker extraction notice:`, err.message);
         }
-      } catch (err: any) {
-        logger.warn('[B2BDiscoveryEngine] Batch decision maker error:', err.message);
-      }
-    }
+      })
+    );
 
     return dmMap;
   }
@@ -603,107 +589,98 @@ Rules:
     const rawEstablishments: any[] = [];
     const seenNamesAndLocalities = new Set<string>();
 
-    // When unlimited, scan through all resolved geographic zones for the city
+    // When unlimited or limited, group active zones into sectors for parallel execution
     const activeZones = hasLimit
-      ? zones.slice(0, Math.min(zones.length, Math.max(Math.ceil(limit / 5), 3)))
+      ? zones.slice(0, Math.min(zones.length, Math.max(Math.ceil(limit / 5), 4)))
       : zones;
 
-    onProgress?.(15, `Stage 2/10: Launching geographic search across ${activeZones.length} key zones in ${city}...`);
+    // Cluster active zones into 3 parallel sectors (or 1-2 if few zones)
+    const sectorCount = Math.min(3, Math.max(1, Math.ceil(activeZones.length / 5)));
+    const sectorSize = Math.ceil(activeZones.length / sectorCount);
+    const sectors: string[][] = [];
+    for (let i = 0; i < activeZones.length; i += sectorSize) {
+      sectors.push(activeZones.slice(i, i + sectorSize));
+    }
 
-    for (let zIdx = 0; zIdx < activeZones.length; zIdx++) {
-      const zone = activeZones[zIdx];
-      zonesAttempted.push(zone);
+    onProgress?.(15, `Stage 2/10: Launching parallel multi-sector scan across ${activeZones.length} key zones in ${city}...`);
 
-      const zonePct = Math.round(15 + (zIdx / activeZones.length) * 35);
-      onProgress?.(zonePct, `Stage 3/10: Scanning zone [${zIdx + 1}/${activeZones.length}]: ${zone} (${rawEstablishments.length} found)...`);
+    await Promise.all(
+      sectors.map(async (sectorZones, sIdx) => {
+        const sectorName = sectorZones.slice(0, 3).join(', ');
+        zonesAttempted.push(...sectorZones);
 
-      const zonePrompt = `Search Google Maps, Google My Business Profiles, verified local directories, and official listings for real commercial businesses matching:
-Industry / Keywords: "${keywords}" ${industry ? `(${industry})` : ''}
-Specific Zone / Locality: "${zone}", ${city}
-Country: "${params.country || (countryCode === '+91' ? 'India' : 'International')}"
-
-Find at least 10 real commercial establishments in or immediately adjacent to ${zone}.
-For EACH establishment provide:
-- Exact Official Business Name
-- Brand Name (if chain or franchise)
-- Branch / Locality (e.g. "${zone}")
-- Specific Category / Speciality
-- Contact Telephone and Mobile numbers (all available)
-- Physical Street Address, landmark and postal code
-- Official Website URL or Google Maps profile link
-- User Ratings and review count
-- Operating Hours
-- Evidence source where verified`;
-
-      let zoneText = '';
-      const candidateModels = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.8-flash'];
-
-      for (const model of candidateModels) {
         try {
-          const resp: any = await Promise.race([
-            this.ai.models.generateContent({
-              model,
-              contents: zonePrompt,
-              config: { tools: [{ googleSearch: {} }] }
-            }),
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT_ZONE')), 45000))
-          ]);
+          const countryParam = params.country || (countryCode === '+91' ? 'India' : 'International');
+          // Clean zone names (remove parentheses/brackets) for better search engine hit rate
+          const cleanZones = sectorZones.map(z => z.replace(/\([^)]*\)/g, '').replace(/&/g, ' ').trim()).filter(Boolean);
+          const zoneKey = cleanZones[0] || city;
+          const liveQuery = `${keywords} in ${zoneKey} ${city} ${countryParam} contact address`;
 
-          if (resp.text && resp.text.length > 100) {
-            zoneText = resp.text;
-            break;
+          let searchHits: Array<{ title: string; snippet: string; url: string }> = [];
+          try {
+            searchHits = await searchLiveWeb(liveQuery, 8);
+          } catch (tErr: any) {
+            logger.warn(`[B2BDiscoveryEngine] Tavily live sector query notice:`, tErr.message);
           }
-        } catch (mErr: any) {
-          if (mErr.message?.includes('429') || mErr.message?.includes('quota')) {
-            await new Promise(r => setTimeout(r, 6000));
+
+          // If query returned few hits, try a broader city query
+          if (searchHits.length === 0) {
+            try {
+              searchHits = await searchLiveWeb(`top ${keywords} companies in ${city} ${countryParam}`, 8);
+            } catch {}
           }
-        }
-      }
 
-      if (zoneText) {
-        try {
-          const parsePrompt = `Convert these search findings for ${zone} into a strict JSON array of objects without Markdown tags:
-${zoneText}
+          const hitsText = searchHits.map((h, i) => `[${i + 1}] ${h.title}: ${h.snippet} (${h.url})`).join('\n');
 
-Format:
+          const sectorPrompt = `You are a B2B Business Intelligence Discovery Engine.
+Discover real, verified commercial establishments matching:
+Keywords / Industry: "${keywords}" ${industry ? `(${industry})` : ''}
+Target City: "${city}", ${countryParam}
+Target Zones: ${sectorZones.join(', ')}
+
+${hitsText ? `Live Verified Web & Directory Listings:\n${hitsText}\n` : ''}
+
+Identify 8 to 15 real, authentic commercial establishments in ${city} matching "${keywords}". Ground your findings in the verified listings above and verified public registries.
+Return STRICTLY a JSON array of objects without Markdown tags:
 [
   {
-    "businessName": "Official Name",
-    "brandName": "Brand / Parent Name if part of chain",
-    "locality": "${zone}",
+    "businessName": "Official Establishment Name",
+    "brandName": "Brand / Parent Name if part of chain, or null",
+    "locality": "Specific zone name (e.g. ${sectorZones[0] || city})",
     "category": "${keywords}",
     "phoneRaw": "Contact telephone or mobile numbers",
-    "address": "Street address in ${zone}",
+    "address": "Street address with locality and postal code",
     "city": "${city}",
-    "website": "Website URL or null",
+    "website": "Official website URL or null",
     "googleProfileUrl": "Google Maps link or null",
-    "rating": "Rating (e.g. 4.8 ★, 500 reviews) or null",
+    "rating": "Rating (e.g. 4.6 ★, 250 reviews) or null",
     "operatingHours": "Operating hours or null",
-    "sourceEvidence": "Evidence source"
+    "sourceEvidence": "Evidence citation or directory source"
   }
-]`;
-          const jsonText = await geminiService.generateText(parsePrompt, 'Return strictly valid JSON array.');
+]
+Rules:
+- NEVER invent fictitious establishments or numbers.
+- Ensure every establishment is a real business located in ${city}.
+- Distinct branches of the same brand must each specify their specific locality.`;
+
+          const jsonText = await geminiService.generateText(sectorPrompt, 'Return strictly valid JSON array.');
           const cleaned = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
           const parsed = JSON.parse(cleaned);
 
           if (Array.isArray(parsed)) {
             totalRawDiscovered += parsed.length;
             for (const item of parsed) {
-              if (!item.businessName) continue;
-              rawEstablishments.push(item);
+              if (item.businessName) {
+                rawEstablishments.push(item);
+              }
             }
           }
-          zonesCompleted.push(zone);
-        } catch (jErr: any) {
-          logger.warn(`[B2BDiscoveryEngine] Zone ${zone} JSON structuring notice:`, jErr.message);
+          zonesCompleted.push(...sectorZones);
+        } catch (err: any) {
+          logger.warn(`[B2BDiscoveryEngine] Sector ${sIdx} (${sectorName}) notice:`, err.message);
         }
-      }
-
-      // Check if we already have sufficient leads to satisfy budget + buffer (when limit specified)
-      if (hasLimit && rawEstablishments.length >= (limit as number) * 1.5) {
-        break;
-      }
-    }
+      })
+    );
 
     onProgress?.(55, `Stage 4/10: Deduplicating listings & maintaining distinct multi-branch hierarchy...`);
 
