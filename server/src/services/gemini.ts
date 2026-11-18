@@ -19,9 +19,9 @@ Guidelines:
 
 // Real verified Google Gemini models with automatic quota cascade
 const FALLBACK_MODELS = [
+  'gemini-2.5-flash',
   'gemini-3.5-flash-lite',
-  'gemini-3.5-flash',
-  'gemini-2.5-flash'
+  'gemini-3.5-flash'
 ];
 
 export class GeminiService {
@@ -52,7 +52,7 @@ export class GeminiService {
   }
 
   public getModelName(): string {
-    return env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+    return env.GEMINI_MODEL || 'gemini-2.5-flash';
   }
 
   /**
@@ -61,7 +61,7 @@ export class GeminiService {
   private async executeWithFallback<T>(
     fn: (modelName: string) => Promise<T>,
     preferredModel?: string,
-    timeoutMs: number = 45000
+    timeoutMs: number = 35000
   ): Promise<T> {
     const primary = preferredModel || this.getModelName();
     const candidateModels = [primary, ...FALLBACK_MODELS.filter(m => m !== primary)];

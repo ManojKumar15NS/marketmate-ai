@@ -1051,6 +1051,7 @@ export interface VerifiedEvent {
   state?: string;
   country: string;
   category: string;
+  mainCategory?: string;
   sourceUrl: string;
   registrationUrl?: string;
   description: string;

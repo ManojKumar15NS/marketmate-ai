@@ -8,13 +8,13 @@ const router = Router();
 router.post('/search', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { keyword, location, category, limit } = req.body;
-    logger.info(`[EventsRoute] Search request received: keyword="${keyword}", location="${location}", limit=${limit}`);
+    logger.info(`[EventsRoute] Search request: keyword="${keyword}", location="${location}", category="${category}", limit=${limit}`);
 
     const result = await eventDiscoveryService.searchEvents({
       keyword: typeof keyword === 'string' ? keyword : undefined,
       location: typeof location === 'string' ? location : undefined,
       category: typeof category === 'string' ? category : undefined,
-      limit: typeof limit === 'number' && limit > 0 ? limit : 50
+      limit: typeof limit === 'number' && limit > 0 ? limit : 100
     });
 
     res.json({
@@ -39,7 +39,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       keyword: typeof keyword === 'string' ? keyword : undefined,
       location: typeof location === 'string' ? location : undefined,
       category: typeof category === 'string' ? category : undefined,
-      limit: limit ? parseInt(limit as string, 10) : 50
+      limit: limit ? parseInt(limit as string, 10) : 100
     });
 
     res.json({
@@ -56,15 +56,15 @@ router.get('/categories', (req: Request, res: Response) => {
   res.json({
     success: true,
     data: [
-      'Doctor & Specialist Medical Conference',
-      'Hospital Infrastructure & MedTech',
-      'Hospital Equipment & Medical Devices',
-      'Laboratory & Pathology',
-      'Hospital Administration & Doctor Networking',
-      'Doctor Conference & Oncology',
-      'Enterprise Tech, AI & Biotech',
+      'Eye Care & Optometry',
+      'Orthopedics & Joint Surgery',
+      'Cardiology & Heart Care',
+      'Oncology & Cancer Care',
+      'Hospital & Healthcare',
+      'Startups & Funding',
+      'Business & B2B',
       'Enterprise Tech & AI',
-      'Industrial Manufacturing & Automation'
+      'Manufacturing & Trade'
     ]
   });
 });
