@@ -980,9 +980,9 @@ export class B2BDiscoveryEngine {
 
     onProgress?.(`Stage 5/10: Querying executive registries & LinkedIn for authorized leadership across ${companies.length} establishments...`);
 
-    // Target top unique companies across parallel batches for verified leadership
+    // Target top unique companies across sequential batches for verified leadership
     const targetCompanies = companies.slice(0, 20);
-    const batchSize = 5;
+    const batchSize = 10;
     const batches: Array<typeof targetCompanies> = [];
     for (let i = 0; i < targetCompanies.length; i += batchSize) {
       batches.push(targetCompanies.slice(i, i + batchSize));
@@ -990,28 +990,25 @@ export class B2BDiscoveryEngine {
 
     const expandedCat = expandKeywords(targetCategory)[0] || targetCategory || 'commercial';
 
-    // Execute decision-maker queries in waves of 2 to maintain ultra-fast response without triggering concurrency limits
-    for (let w = 0; w < batches.length; w += 2) {
-      const dmWave = batches.slice(w, w + 2);
-      await Promise.all(
-        dmWave.map(async (batch, subIdx) => {
-          const batchIdx = w + subIdx;
-          try {
-            const companyNames = batch.map(c => `"${c.businessName}"`).join(', ');
-            const city = batch[0]?.city || 'target city';
+    // Execute decision-maker batches sequentially to prevent 503 concurrency collisions
+    for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+      const batch = batches[batchIdx];
+      try {
+        const companyNames = batch.map(c => `"${c.businessName}"`).join(', ');
+        const city = batch[0]?.city || 'target city';
 
-            // 1. Fetch live search grounding via Tavily
-            const liveQuery = `${expandedCat} leadership founders CEOs Directors in ${city} for ${companyNames} LinkedIn`;
-            let liveHits: Array<{ title: string; snippet: string; url: string }> = [];
-            try {
-              liveHits = await searchLiveWeb(liveQuery, 8);
-            } catch (e: any) {
-              logger.warn(`[B2BDiscoveryEngine] Tavily live query warning for DM batch ${batchIdx}:`, e.message);
-            }
+        // 1. Fetch live search grounding via Tavily
+        const liveQuery = `${expandedCat} leadership founders CEOs Directors in ${city} for ${companyNames} LinkedIn`;
+        let liveHits: Array<{ title: string; snippet: string; url: string }> = [];
+        try {
+          liveHits = await searchLiveWeb(liveQuery, 8);
+        } catch (e: any) {
+          logger.warn(`[B2BDiscoveryEngine] Tavily live query warning for DM batch ${batchIdx}:`, e.message);
+        }
 
-            const citations = liveHits.map((h, idx) => `[${idx + 1}] ${h.title}: ${h.snippet} (${h.url})`).join('\n');
+        const citations = liveHits.map((h, idx) => `[${idx + 1}] ${h.title}: ${h.snippet} (${h.url})`).join('\n');
 
-            const dmPrompt = `You are a B2B Executive Intelligence Specialist.
+        const dmPrompt = `You are a B2B Executive Intelligence Specialist.
 Find the authorized leaders, founders, directors, executives (CEOs, MDs, Owners, Partners) and department heads for these specific establishments in ${city} in the "${targetCategory || 'commercial'}" sector:
 
 Establishments:
@@ -1038,56 +1035,54 @@ Rules:
 - If no decision maker is found for a specific company, do not make one up.
 - Only return people who actually work or lead the company.`;
 
-            const jsonText = await geminiService.generateText(dmPrompt, 'Return strictly valid JSON array.');
-            const cleaned = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(cleaned);
+        const jsonText = await geminiService.generateText(dmPrompt, 'Return strictly valid JSON array.');
+        const cleaned = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
 
-            if (Array.isArray(parsed)) {
-              for (const dm of parsed) {
-                if (!dm.name || !dm.companyName) continue;
-                const matchCompany = batch.find(b =>
-                  b.businessName.toLowerCase().includes(dm.companyName.toLowerCase()) ||
-                  dm.companyName.toLowerCase().includes(b.businessName.toLowerCase())
-                );
-                const cKey = matchCompany ? matchCompany.businessName : dm.companyName;
+        if (Array.isArray(parsed)) {
+          for (const dm of parsed) {
+            if (!dm.name || !dm.companyName) continue;
+            const matchCompany = batch.find(b =>
+              b.businessName.toLowerCase().includes(dm.companyName.toLowerCase()) ||
+              dm.companyName.toLowerCase().includes(b.businessName.toLowerCase())
+            );
+            const cKey = matchCompany ? matchCompany.businessName : dm.companyName;
 
-                const roleCategory = this.categorizeRole(dm.designation || '');
-                const validStatus: EmploymentVerificationStatus =
-                  ['verified', 'partially_verified', 'unverified', 'rejected'].includes(dm.employmentStatus)
-                    ? dm.employmentStatus
-                    : 'partially_verified';
+            const roleCategory = this.categorizeRole(dm.designation || '');
+            const validStatus: EmploymentVerificationStatus =
+              ['verified', 'partially_verified', 'unverified', 'rejected'].includes(dm.employmentStatus)
+                ? dm.employmentStatus
+                : 'partially_verified';
 
-                const record: B2BDecisionMaker = {
-                  id: `dm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-                  name: dm.name.trim(),
-                  designation: dm.designation || 'Executive / Administrator',
-                  roleCategory,
-                  companyName: cKey,
-                  companyId: `comp_${cKey.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
-                  branchLocation: matchCompany?.locality,
-                  linkedinUrl: dm.linkedinUrl && dm.linkedinUrl.startsWith('http') ? dm.linkedinUrl.trim() : undefined,
-                  email: dm.email && dm.email.includes('@') ? dm.email.trim() : undefined,
-                  emailVerificationStatus: dm.email ? 'Publicly listed' : undefined,
-                  phone: dm.phone ? String(dm.phone).trim() : undefined,
-                  employmentStatus: validStatus,
-                  confidenceScore: typeof dm.confidenceScore === 'number' ? dm.confidenceScore : 80,
-                  sourceUrls: [dm.linkedinUrl || 'https://google.com'],
-                  sourceEvidence: dm.sourceEvidence || `Public leadership records for ${cKey}`,
-                  discoveredAt: new Date().toISOString()
-                };
+            const record: B2BDecisionMaker = {
+              id: `dm_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+              name: dm.name.trim(),
+              designation: dm.designation || 'Executive / Administrator',
+              roleCategory,
+              companyName: cKey,
+              companyId: `comp_${cKey.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+              branchLocation: matchCompany?.locality,
+              linkedinUrl: dm.linkedinUrl && dm.linkedinUrl.startsWith('http') ? dm.linkedinUrl.trim() : undefined,
+              email: dm.email && dm.email.includes('@') ? dm.email.trim() : undefined,
+              emailVerificationStatus: dm.email ? 'Publicly listed' : undefined,
+              phone: dm.phone ? String(dm.phone).trim() : undefined,
+              employmentStatus: validStatus,
+              confidenceScore: typeof dm.confidenceScore === 'number' ? dm.confidenceScore : 80,
+              sourceUrls: [dm.linkedinUrl || 'https://google.com'],
+              sourceEvidence: dm.sourceEvidence || `Public leadership records for ${cKey}`,
+              discoveredAt: new Date().toISOString()
+            };
 
-                const existing = dmMap.get(cKey) || [];
-                if (!existing.some(e => e.name.toLowerCase() === record.name.toLowerCase())) {
-                  existing.push(record);
-                  dmMap.set(cKey, existing);
-                }
-              }
+            const existing = dmMap.get(cKey) || [];
+            if (!existing.some(e => e.name.toLowerCase() === record.name.toLowerCase())) {
+              existing.push(record);
+              dmMap.set(cKey, existing);
             }
-          } catch (err: any) {
-            logger.warn(`[B2BDiscoveryEngine] Batch ${batchIdx} decision maker extraction notice:`, err.message);
           }
-        })
-      );
+        }
+      } catch (err: any) {
+        logger.warn(`[B2BDiscoveryEngine] Batch ${batchIdx} decision maker extraction notice:`, err.message);
+      }
     }
 
     return dmMap;
@@ -1146,92 +1141,96 @@ Rules:
       ? zones.slice(0, Math.min(zones.length, Math.max(Math.ceil(limit / 5), 4)))
       : zones;
 
-    // Cluster active zones into 4 focused macro sectors for high-speed parallel city scanning without LLM quota throttling
-    const sectorCount = Math.min(4, Math.max(2, Math.ceil(activeZones.length / 5)));
-    const sectorSize = Math.ceil(activeZones.length / sectorCount);
-    const sectors: string[][] = [];
-    for (let i = 0; i < activeZones.length; i += sectorSize) {
-      sectors.push(activeZones.slice(i, i + sectorSize));
-    }
-
+    // Expand keywords into authentic commercial terminology
     const expandedKws = expandKeywords(keywords);
     const primaryKw = expandedKws[0] || keywords;
     const secondaryKw = expandedKws[1] || primaryKw;
+    const countryParam = params.country || (countryCode === '+91' ? 'India' : 'International');
 
-    onProgress?.(15, `Stage 2/10: Launching parallel multi-sector scan across ${activeZones.length} key zones in ${city}...`);
+    onProgress?.(15, `Stage 2/10: Launching multi-sector live web grounding across ${activeZones.length} key zones in ${city}...`);
 
-    // Process sectors in waves of 2 to avoid free-tier concurrency collisions
-    for (let w = 0; w < sectors.length; w += 2) {
-      const sectorWave = sectors.slice(w, w + 2);
-      await Promise.all(
-        sectorWave.map(async (sectorZones, subIdx) => {
-          const sIdx = w + subIdx;
-          const sectorName = sectorZones.slice(0, 3).join(', ');
-          zonesAttempted.push(...sectorZones);
+    // Clean zone names
+    const cleanZones = activeZones.map(z => z.replace(/\([^)]*\)/g, '').replace(/&/g, ' ').trim()).filter(Boolean);
+    const zoneSlice1 = cleanZones.slice(0, 4).join(' ');
+    const zoneSlice2 = cleanZones.slice(4, 9).join(' ');
+    const zoneSlice3 = cleanZones.slice(9, 15).join(' ');
 
-          try {
-            const countryParam = params.country || (countryCode === '+91' ? 'India' : 'International');
-            const cleanZones = sectorZones.map(z => z.replace(/\([^)]*\)/g, '').replace(/&/g, ' ').trim()).filter(Boolean);
-            const liveQuery = `"${primaryKw}" in ${cleanZones.slice(0, 3).join(' ')} ${city} ${countryParam} phone address website Google Maps`;
+    // Query live web directory citations via Tavily across distinct city zones
+    const searchTasks = [
+      searchLiveWeb(`"${primaryKw}" in ${zoneSlice1 || city} ${city} ${countryParam} phone address website`, 8),
+      searchLiveWeb(`"${secondaryKw}" in ${zoneSlice2 || zoneSlice1 || city} ${city} ${countryParam} phone address`, 8),
+      searchLiveWeb(`top commercial "${keywords}" directory listings in ${city} ${countryParam} official websites phone numbers`, 8)
+    ];
 
-            let searchHits: Array<{ title: string; snippet: string; url: string }> = [];
-            try {
-              searchHits = await searchLiveWeb(liveQuery, 8);
-            } catch (tErr: any) {
-              logger.warn(`[B2BDiscoveryEngine] Sector live query notice:`, tErr.message);
-            }
+    if (zoneSlice3) {
+      searchTasks.push(searchLiveWeb(`"${primaryKw}" in ${zoneSlice3} ${city} ${countryParam} contact Google Maps`, 8));
+    }
 
-            const hitsText = searchHits.map((h, i) => `[${i + 1}] ${h.title}: ${h.snippet} (${h.url})`).join('\n');
+    let allCitations: Array<{ title: string; snippet: string; url: string }> = [];
+    try {
+      const searchResults = await Promise.all(searchTasks);
+      for (const res of searchResults) {
+        if (Array.isArray(res)) {
+          allCitations.push(...res);
+        }
+      }
+    } catch (tErr: any) {
+      logger.warn(`[B2BDiscoveryEngine] Tavily multi-sector query notice:`, tErr.message);
+    }
 
-            const sectorPrompt = `You are a B2B Business Intelligence Discovery Engine.
-Discover real, verified commercial establishments in ${city}, ${countryParam} matching:
-Keywords / Industry: "${keywords}" (and related: ${expandedKws.slice(0, 3).join(', ')})
-Target Localities / Zones: ${sectorZones.join(', ')}
+    onProgress?.(40, `Stage 3/10: Extracting structured establishments & Google Maps profiles from ${allCitations.length} live citations...`);
 
-${hitsText ? `Live Verified Web & Directory Listings:\n${hitsText}\n` : ''}
+    const hitsContext = allCitations.map((h, i) => `[${i + 1}] ${h.title}: ${h.snippet} (${h.url})`).join('\n');
 
-Extract 8 to 15 real, authentic commercial establishments in ${city} located in or near ${sectorZones.join(', ')}.
-DO NOT return fewer than 6 establishments if commercial listings exist.
+    const extractionPrompt = `You are an elite B2B Business Intelligence Discovery Engine.
+From these verified live web results and verified commercial directory data for ${city}, discover 25 to 40 real, verified commercial establishments matching "${keywords}" (${expandedKws.slice(0, 3).join(', ')}):
+
+Live Verified Web Results:
+${hitsContext}
+
+Target City: "${city}", ${countryParam}
+Target Key Localities & Zones: ${activeZones.join(', ')}
+
+Extract authentic establishments across all key zones of ${city}.
 Return STRICTLY a JSON array of objects without Markdown tags:
 [
   {
     "businessName": "Official Establishment Name",
     "brandName": "Brand / Parent Name if part of chain, or null",
-    "locality": "Specific locality from: ${sectorZones.join(', ')}",
+    "locality": "Specific locality in ${city}",
     "category": "${primaryKw}",
     "phoneRaw": "Contact telephone or mobile numbers",
     "address": "Street address with locality and postal code",
     "city": "${city}",
     "website": "Official website URL or null",
     "googleProfileUrl": "Google Maps link or null",
-    "rating": "Rating (e.g. 4.6 ★, 250 reviews) or null",
+    "rating": "Rating (e.g. 4.7 ★, 500 reviews) or null",
     "operatingHours": "Operating hours or null",
     "sourceEvidence": "Evidence citation or directory source"
   }
 ]
 Rules:
-- NEVER invent fictitious establishments or numbers.
+- DO NOT return fewer than 20 establishments if commercial listings exist.
+- Distinct branches in different localities (e.g. Dr Agarwal's in Indiranagar vs Koramangala vs Whitefield) MUST be kept as separate records.
 - Ensure every establishment is a real, operational business located in ${city}.
-- Distinct branches of the same brand must each specify their specific locality.`;
+- Ensure valid street addresses, phone numbers, and official websites wherever available.`;
 
-            const jsonText = await geminiService.generateText(sectorPrompt, 'Return strictly valid JSON array.');
-            const cleaned = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(cleaned);
+    try {
+      const jsonText = await geminiService.generateText(extractionPrompt, 'Return strictly valid JSON array.');
+      const cleaned = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleaned);
 
-            if (Array.isArray(parsed)) {
-              totalRawDiscovered += parsed.length;
-              for (const item of parsed) {
-                if (item.businessName) {
-                  rawEstablishments.push(item);
-                }
-              }
-            }
-            zonesCompleted.push(...sectorZones);
-          } catch (err: any) {
-            logger.warn(`[B2BDiscoveryEngine] Sector ${sIdx} (${sectorName}) notice:`, err.message);
+      if (Array.isArray(parsed)) {
+        totalRawDiscovered += parsed.length;
+        for (const item of parsed) {
+          if (item.businessName) {
+            rawEstablishments.push(item);
           }
-        })
-      );
+        }
+      }
+      zonesCompleted.push(...activeZones);
+    } catch (err: any) {
+      logger.warn(`[B2BDiscoveryEngine] Extraction structuring notice:`, err.message);
     }
 
     onProgress?.(55, `Stage 4/10: Deduplicating listings & maintaining distinct multi-branch hierarchy...`);

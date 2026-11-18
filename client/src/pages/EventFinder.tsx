@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Calendar,
   MapPin,
@@ -40,17 +41,28 @@ const CATEGORY_PILLS: CategoryPill[] = [
 ];
 
 export const EventFinder: React.FC = () => {
-  const [keyword, setKeyword] = useState('');
-  const [location, setLocation] = useState('India');
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [searchParams] = useSearchParams();
+  const initialKeyword = searchParams.get('keyword') || '';
+  const initialLocation = searchParams.get('location') || 'India';
+  const initialCategory = searchParams.get('category') || '';
+
+  const [keyword, setKeyword] = useState(initialKeyword);
+  const [location, setLocation] = useState(initialLocation);
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<EventSearchResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Initial load
+  // Initial load or URL search param changes
   useEffect(() => {
-    handleSearch('', 'India', '');
-  }, []);
+    const kw = searchParams.get('keyword') || '';
+    const loc = searchParams.get('location') || 'India';
+    const cat = searchParams.get('category') || '';
+    setKeyword(kw);
+    setLocation(loc);
+    setSelectedCategory(cat);
+    handleSearch(kw, loc, cat);
+  }, [searchParams]);
 
   const handleSearch = async (kw = keyword, loc = location, cat = selectedCategory) => {
     setIsSearching(true);

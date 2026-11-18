@@ -33,8 +33,10 @@ import {
   AlertCircle,
   History,
   X,
-  Compass
+  Compass,
+  Calendar
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import { useJobs } from '../context/JobContext';
 import { CompanyDetailModal } from '../components/CompanyDetailModal';
@@ -588,6 +590,32 @@ export const WhatsAppFinder: React.FC = () => {
             <div className="text-[11px] text-gray-400 mt-0.5 truncate">Score ≥ 70 / 100</div>
           </div>
         </div>
+
+        {/* Industry Event Discovery Cross-Link Banner */}
+        {currentRun && (
+          <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border border-purple-200/80 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-purple-950">
+                  Looking for upcoming industry events, summits or medical conferences in {city || currentRun.location}?
+                </div>
+                <div className="text-[11px] text-purple-700/90">
+                  Discover verified upcoming conferences, organizing bodies, venues, and official registration links.
+                </div>
+              </div>
+            </div>
+            <Link
+              to={`/events?keyword=${encodeURIComponent(keywords || 'medical')}&location=${encodeURIComponent(city || 'Bangalore')}`}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-purple-700 bg-white hover:bg-purple-100/60 border border-purple-200 rounded-lg transition shrink-0"
+            >
+              Explore {keywords || 'Industry'} Events
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        )}
 
         {/* 3. RESULTS DASHBOARD WITH 4 TABS */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-xs overflow-hidden">
