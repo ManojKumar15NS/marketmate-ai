@@ -16,6 +16,7 @@ import { Knowledge } from './pages/Knowledge';
 import { Prospecting } from './pages/Prospecting';
 import { EmailFinder } from './pages/EmailFinder';
 import { WhatsAppFinder } from './pages/WhatsAppFinder';
+import { EventFinder } from './pages/EventFinder';
 import { JobProvider } from './context/JobContext';
 import { BackgroundActivityPanel } from './components/BackgroundActivityPanel';
 import { AuthModal } from './components/AuthModal';
@@ -109,6 +110,7 @@ function AppLayout() {
             <Route path="/prospecting" element={<Prospecting />} />
             <Route path="/email-finder" element={<EmailFinder />} />
             <Route path="/whatsapp" element={<WhatsAppFinder />} />
+            <Route path="/events" element={<EventFinder />} />
             <Route path="/knowledge" element={<Knowledge />} />
             <Route
               path="/settings"

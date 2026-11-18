@@ -28,6 +28,7 @@ import knowledgeRouter from './routes/knowledge.js';
 import leadsRouter from './routes/leads.js';
 import emailFinderRouter from './routes/emailFinder.js';
 import whatsappRouter from './routes/whatsapp.js';
+import eventsRouter from './routes/events.js';
 import jobsRouter from './routes/jobs.js';
 import authRouter from './routes/auth.js';
 
@@ -133,9 +134,15 @@ app.use('/api/knowledge', knowledgeRouter);
 app.use('/api/leads', leadsRouter);
 app.use('/api/email-finder', emailFinderRouter);
 app.use('/api/whatsapp', whatsappRouter);
+app.use('/api/events', eventsRouter);
 
 // 6. Production Static Assets (Client SPA)
-const CLIENT_DIST = path.resolve(__dirname, '../../../client/dist');
+const CLIENT_DIST = [
+  path.resolve(__dirname, '../../client/dist'),
+  path.resolve(__dirname, '../../../client/dist'),
+  path.resolve(process.cwd(), '../client/dist'),
+  path.resolve(process.cwd(), 'client/dist')
+].find(p => fs.existsSync(p)) || path.resolve(__dirname, '../../client/dist');
 if (fs.existsSync(CLIENT_DIST)) {
   app.use(express.static(CLIENT_DIST));
   app.get('*', (req, res, next) => {

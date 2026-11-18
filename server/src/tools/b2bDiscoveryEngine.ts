@@ -435,8 +435,8 @@ export class B2BDiscoveryEngine {
 
     onProgress?.(`Stage 5/10: Querying executive registries & LinkedIn for authorized leadership across ${companies.length} establishments...`);
 
-    // Target top unique companies for speed and relevance (up to 12 companies in 2 parallel batches)
-    const targetCompanies = companies.slice(0, 12);
+    // Process all discovered companies across parallel batches without arbitrary 12-item truncation
+    const targetCompanies = companies;
     const batchSize = 6;
     const batches: Array<typeof targetCompanies> = [];
     for (let i = 0; i < targetCompanies.length; i += batchSize) {

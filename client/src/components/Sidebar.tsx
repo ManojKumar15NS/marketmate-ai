@@ -20,7 +20,8 @@ import {
   Users,
   AtSign,
   MessageSquare,
-  Building2
+  Building2,
+  Calendar
 } from 'lucide-react';
 import { SystemSettings } from '../types';
 
@@ -129,6 +130,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ settings, onNewChat }) => {
                 <span>Business & Decision-Maker Finder</span>
               </div>
               <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-700">AI</span>
+            </NavLink>
+            <NavLink to="/events" className={navItemClass}>
+              <div className="flex items-center gap-2.5">
+                <Calendar className="w-4 h-4 text-indigo-600" />
+                <span>Event & Conference Tracker</span>
+              </div>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-100 text-indigo-700">NEW</span>
             </NavLink>
             <NavLink to="/seo-editor" className={navItemClass}>
               <div className="flex items-center gap-2.5">

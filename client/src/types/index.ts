@@ -1041,3 +1041,35 @@ export interface WhatsAppSearchRun {
   createdAt: string;
 }
 
+export interface VerifiedEvent {
+  id: string;
+  title: string;
+  organizer: string;
+  dates: string;
+  venue: string;
+  city: string;
+  state?: string;
+  country: string;
+  category: string;
+  sourceUrl: string;
+  registrationUrl?: string;
+  description: string;
+  verified: boolean;
+  retrievedAt: string;
+}
+
+export interface EventSearchResult {
+  query: {
+    keyword?: string;
+    location?: string;
+    category?: string;
+  };
+  totalCount: number;
+  events: VerifiedEvent[];
+  cityBreakdown: Record<string, number>;
+  categoryBreakdown: Record<string, number>;
+  sourcesQueried: string[];
+  disclaimer: string;
+}
+
+

@@ -930,6 +930,22 @@ export const api = {
     }
     const qs = params.toString() ? `?${params.toString()}` : '';
     return `${API_BASE}/whatsapp/export.${format}${qs}`;
+  },
+
+  // ============================================================================
+  // EVENT INTELLIGENCE API (Doctors, Hospitals, Conferences & Summits)
+  // ============================================================================
+
+  async searchEvents(params: { keyword?: string; location?: string; category?: string; limit?: number }): Promise<{ success: boolean; data: any }> {
+    return safeRequest(`${API_BASE}/events/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    });
+  },
+
+  async getEventCategories(): Promise<{ success: boolean; data: string[] }> {
+    return safeRequest(`${API_BASE}/events/categories`);
   }
 };
 
