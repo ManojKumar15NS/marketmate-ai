@@ -1057,6 +1057,8 @@ export interface VerifiedEvent {
   description: string;
   verified: boolean;
   retrievedAt: string;
+  sourceType?: 'live_crawler' | 'society_registry';
+  eventType?: 'National Conference' | 'Local Meetup / Workshop' | 'Trade Expo' | 'Academic Summit';
 }
 
 export interface EventSearchResult {
