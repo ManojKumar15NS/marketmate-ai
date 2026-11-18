@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useState } from 'react';
 import {
   Calendar,
   MapPin,
@@ -29,55 +28,43 @@ interface CategoryPill {
 }
 
 const CATEGORY_PILLS: CategoryPill[] = [
-  { id: '', label: 'All Events', icon: <Layers className="w-3.5 h-3.5" /> },
-  { id: 'Eye Care & Optometry', label: 'Eye Care & Optometry', icon: <Eye className="w-3.5 h-3.5" /> },
-  { id: 'Orthopedics & Joint Surgery', label: 'Orthopedics & Surgery', icon: <Activity className="w-3.5 h-3.5" /> },
+  { id: '', label: 'All Categories', icon: <Layers className="w-3.5 h-3.5" /> },
+  { id: 'Eye Care & Optometry', label: 'Eye & Optometric', icon: <Eye className="w-3.5 h-3.5" /> },
+  { id: 'Orthopedics & Joint Surgery', label: 'Orthopedic & Surgery', icon: <Activity className="w-3.5 h-3.5" /> },
   { id: 'Cardiology & Heart Care', label: 'Cardiology & Heart', icon: <Heart className="w-3.5 h-3.5" /> },
-  { id: 'Hospital & Healthcare', label: 'Hospital & Healthcare', icon: <Building2 className="w-3.5 h-3.5" /> },
-  { id: 'Startups & Funding', label: 'Startups & Funding', icon: <Rocket className="w-3.5 h-3.5" /> },
+  { id: 'Hospital & Healthcare', label: 'Hospital & Doctors', icon: <Building2 className="w-3.5 h-3.5" /> },
+  { id: 'Startups & Funding', label: 'Startups & VCs', icon: <Rocket className="w-3.5 h-3.5" /> },
   { id: 'Business & B2B', label: 'Business & B2B', icon: <Briefcase className="w-3.5 h-3.5" /> },
   { id: 'Enterprise Tech & AI', label: 'Tech & AI', icon: <Cpu className="w-3.5 h-3.5" /> },
   { id: 'Manufacturing & Trade', label: 'Manufacturing & Trade', icon: <Factory className="w-3.5 h-3.5" /> }
 ];
 
 export const EventFinder: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const initialKeyword = searchParams.get('keyword') || '';
-  const initialLocation = searchParams.get('location') || 'India';
-  const initialCategory = searchParams.get('category') || '';
-
-  const [keyword, setKeyword] = useState(initialKeyword);
-  const [location, setLocation] = useState(initialLocation);
-  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+  const [keyword, setKeyword] = useState('');
+  const [location, setLocation] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<EventSearchResult | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Initial load or URL search param changes
-  useEffect(() => {
-    const kw = searchParams.get('keyword') || '';
-    const loc = searchParams.get('location') || 'India';
-    const cat = searchParams.get('category') || '';
-    setKeyword(kw);
-    setLocation(loc);
-    setSelectedCategory(cat);
-    handleSearch(kw, loc, cat);
-  }, [searchParams]);
+  // No automatic search on mount - user initiates search with their chosen keyword or category
 
   const handleSearch = async (kw = keyword, loc = location, cat = selectedCategory) => {
     setIsSearching(true);
+    setHasSearched(true);
     setErrorMsg(null);
     try {
       const res = await api.searchEvents({
-        keyword: kw,
-        location: loc,
+        keyword: kw.trim(),
+        location: loc.trim() || 'India',
         category: cat || undefined,
         limit: 100
       });
       if (res.success && res.data) {
         setResults(res.data);
       } else {
-        setErrorMsg('No events found for this filter. Try a broader location or keyword.');
+        setErrorMsg('No events found for this filter. Try a broader keyword or city.');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to search events.');
@@ -109,7 +96,7 @@ export const EventFinder: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `upcoming-events-${location.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.csv`;
+    a.download = `upcoming-events-${(keyword || selectedCategory || 'events').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -117,7 +104,7 @@ export const EventFinder: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
       {/* Top Header */}
-      <header className="p-6 bg-white border-b border-slate-200 shrink-0 space-y-4">
+      <header className="p-6 bg-white border-b border-slate-200 shrink-0 space-y-4 shadow-2xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
@@ -125,7 +112,7 @@ export const EventFinder: React.FC = () => {
               <span>Event & Conference Tracker</span>
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Comprehensive directory of upcoming Doctor conferences, Eye Care & Optometry summits, Hospital conventions, Startups, and B2B trade expos.
+              Enter any keyword (e.g. <strong>EYE</strong>, <strong>Optometric</strong>, <strong>Orthopedic</strong>, <strong>Hospital</strong>, <strong>Startups</strong>) to discover upcoming verified events across India.
             </p>
           </div>
           {results && results.events.length > 0 && (
@@ -153,7 +140,7 @@ export const EventFinder: React.FC = () => {
               type="text"
               value={keyword}
               onChange={e => setKeyword(e.target.value)}
-              placeholder="Search keyword: e.g. EYE, Optometric, Orthopedic, Hospital, Startups, AI..."
+              placeholder="Search keyword: EYE, Optometric, Orthopedic, Hospital, Startups, Business..."
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500 focus:bg-white transition"
             />
           </div>
@@ -164,7 +151,7 @@ export const EventFinder: React.FC = () => {
               type="text"
               value={location}
               onChange={e => setLocation(e.target.value)}
-              placeholder="Location: Bengaluru, Mumbai, Delhi, India..."
+              placeholder="City/Region: e.g. Bengaluru, Mumbai, Delhi (or leave blank for All India)"
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500 focus:bg-white transition"
             />
           </div>
@@ -176,12 +163,12 @@ export const EventFinder: React.FC = () => {
               className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm"
             >
               <Sparkles className="w-4 h-4" />
-              <span>{isSearching ? 'Filtering...' : 'Find Events'}</span>
+              <span>{isSearching ? 'Searching...' : 'Find Events'}</span>
             </button>
           </div>
         </form>
 
-        {/* Category Pills Bar */}
+        {/* Category Pills */}
         <div className="space-y-2 pt-1">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
             {CATEGORY_PILLS.map(cat => (
@@ -203,18 +190,18 @@ export const EventFinder: React.FC = () => {
 
           {/* Quick Hub Cities */}
           <div className="flex items-center gap-2 overflow-x-auto text-[11px] text-slate-500 pt-0.5">
-            <span className="font-semibold text-slate-400 shrink-0">City:</span>
+            <span className="font-semibold text-slate-400 shrink-0">Popular Hubs:</span>
             {['All India', 'Bengaluru', 'Mumbai', 'New Delhi', 'Hyderabad', 'Kolkata'].map(hub => (
               <button
                 key={hub}
                 type="button"
                 onClick={() => {
-                  const locVal = hub === 'All India' ? 'India' : hub;
+                  const locVal = hub === 'All India' ? '' : hub;
                   setLocation(locVal);
                   handleSearch(keyword, locVal, selectedCategory);
                 }}
                 className={`px-2 py-0.5 rounded text-[11px] font-medium border transition shrink-0 ${
-                  location.toLowerCase() === hub.toLowerCase() || (hub === 'All India' && location.toLowerCase() === 'india')
+                  (location.toLowerCase() === hub.toLowerCase()) || (hub === 'All India' && !location)
                     ? 'bg-indigo-50 text-indigo-700 border-indigo-200 font-bold'
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                 }`}
@@ -226,7 +213,7 @@ export const EventFinder: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Events Grid */}
+      {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto p-6 space-y-4">
         {errorMsg && (
           <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs">
@@ -235,13 +222,13 @@ export const EventFinder: React.FC = () => {
         )}
 
         {/* Summary Meta Bar */}
-        {results && (
+        {results && hasSearched && (
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
             <div className="flex items-center gap-2">
               <span className="font-bold text-slate-900">{results.totalCount} Verified Events Found</span>
               <span className="text-slate-400">&bull;</span>
               <span className="text-slate-500">
-                {selectedCategory ? `Category: ${selectedCategory}` : 'All Categories'}
+                {keyword ? `Keyword: "${keyword}"` : selectedCategory || 'All Categories'}
               </span>
               <span className="text-slate-400">&bull;</span>
               <span className="text-slate-500">Location: {results.query.location || 'India'}</span>
@@ -253,7 +240,7 @@ export const EventFinder: React.FC = () => {
           </div>
         )}
 
-        {/* Event Cards */}
+        {/* Event Cards Grid */}
         {results && results.events.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {results.events.map(evt => (
@@ -328,16 +315,113 @@ export const EventFinder: React.FC = () => {
               </div>
             ))}
           </div>
+        ) : hasSearched && !isSearching ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400">
+            <Calendar className="w-12 h-12 text-slate-300 mb-3" />
+            <h3 className="text-sm font-bold text-slate-700">No Events Found</h3>
+            <p className="text-xs max-w-sm mt-1 text-slate-500">
+              Try switching categories or searching for keywords like "eye", "optometric", "orthopedic", "hospital", or "startups".
+            </p>
+          </div>
         ) : (
-          !isSearching && (
-            <div className="flex flex-col items-center justify-center py-16 text-center text-slate-400">
-              <Calendar className="w-12 h-12 text-slate-300 mb-3" />
-              <h3 className="text-sm font-bold text-slate-700">No Events Found</h3>
-              <p className="text-xs max-w-sm mt-1 text-slate-500">
-                Try switching categories or searching for keywords like "eye", "optometric", "orthopedic", "hospital", or "startups".
+          /* Clean Initial State when user first opens the page */
+          <div className="flex flex-col items-center justify-center py-16 text-center max-w-xl mx-auto space-y-4">
+            <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-sm">
+              <Calendar className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Event & Conference Intelligence</h2>
+              <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                Search across all major conferences and summits in India. Select any category above or enter a specialty keyword like <strong>EYE</strong>, <strong>Optometric</strong>, <strong>Orthopedic</strong>, <strong>Hospital</strong>, <strong>Startups</strong>, or <strong>B2B</strong>.
               </p>
             </div>
-          )
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 w-full pt-2">
+              <button
+                onClick={() => {
+                  setKeyword('EYE');
+                  handleSearch('EYE', location, 'Eye Care & Optometry');
+                }}
+                className="p-3 bg-white border border-slate-200 hover:border-indigo-400 rounded-xl text-left text-xs space-y-1 transition group"
+              >
+                <div className="font-bold text-slate-800 group-hover:text-indigo-600 flex items-center gap-1.5">
+                  <Eye className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Eye & Optometric</span>
+                </div>
+                <div className="text-[10px] text-slate-400">AIOC, DOS, KOSCON, Cataract</div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setKeyword('orthopedic');
+                  handleSearch('orthopedic', location, 'Orthopedics & Joint Surgery');
+                }}
+                className="p-3 bg-white border border-slate-200 hover:border-indigo-400 rounded-xl text-left text-xs space-y-1 transition group"
+              >
+                <div className="font-bold text-slate-800 group-hover:text-indigo-600 flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Orthopedic & Joints</span>
+                </div>
+                <div className="text-[10px] text-slate-400">IOACON, WIROC, KOACON</div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setKeyword('hospital');
+                  handleSearch('hospital', location, 'Hospital & Healthcare');
+                }}
+                className="p-3 bg-white border border-slate-200 hover:border-indigo-400 rounded-xl text-left text-xs space-y-1 transition group"
+              >
+                <div className="font-bold text-slate-800 group-hover:text-indigo-600 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-blue-500" />
+                  <span>Hospital & CAHO</span>
+                </div>
+                <div className="text-[10px] text-slate-400">Medical Fair, PULSE, HEAL</div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setKeyword('startups');
+                  handleSearch('startups', location, 'Startups & Funding');
+                }}
+                className="p-3 bg-white border border-slate-200 hover:border-indigo-400 rounded-xl text-left text-xs space-y-1 transition group"
+              >
+                <div className="font-bold text-slate-800 group-hover:text-indigo-600 flex items-center gap-1.5">
+                  <Rocket className="w-3.5 h-3.5 text-purple-500" />
+                  <span>Startups & VCs</span>
+                </div>
+                <div className="text-[10px] text-slate-400">TechSparks, TiE, NASSCOM</div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setKeyword('business');
+                  handleSearch('business', location, 'Business & B2B');
+                }}
+                className="p-3 bg-white border border-slate-200 hover:border-indigo-400 rounded-xl text-left text-xs space-y-1 transition group"
+              >
+                <div className="font-bold text-slate-800 group-hover:text-indigo-600 flex items-center gap-1.5">
+                  <Briefcase className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Business & B2B</span>
+                </div>
+                <div className="text-[10px] text-slate-400">CII, FICCI, ASSOCHAM</div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setKeyword('cardiology');
+                  handleSearch('cardiology', location, 'Cardiology & Heart Care');
+                }}
+                className="p-3 bg-white border border-slate-200 hover:border-indigo-400 rounded-xl text-left text-xs space-y-1 transition group"
+              >
+                <div className="font-bold text-slate-800 group-hover:text-indigo-600 flex items-center gap-1.5">
+                  <Heart className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Cardiology & Heart</span>
+                </div>
+                <div className="text-[10px] text-slate-400">CSI, India Live Conclave</div>
+              </button>
+            </div>
+          </div>
         )}
       </main>
     </div>
